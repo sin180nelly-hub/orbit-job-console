@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Navigator Nest | 任務列表</title>
+  <link rel="stylesheet" href="/css/app.css" />
+  <script src="/js/countdown.js"></script>
+</head>
+<body>
+  <!-- Decorative nest atmosphere (pointer-events: none) -->
+  <div class="nest-ambient" aria-hidden="true">
+    <div class="glow-base"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <div class="orb orb-d"></div>
+    <div class="orb orb-e"></div>
+  </div>
+
+  <div class="nav-shell">
+    <nav class="app-nav">
+      <a class="brand" href="/index.html">
+        <span class="brand-mark">🪺</span>
+        <span>Navigator Nest</span>
+      </a>
+      <div class="nav-links">
+        <a href="/index.html">AI 助手</a>
+        <a href="/tasks.html" class="active">任務列表</a>
+        <a href="/calendar.html">日曆</a>
+        <a href="/diaries.html">日記</a>
+      </div>
+      <div class="nav-user">
+        <span class="user-name">已登入 <strong id="navUsername">—</strong></span>
+        <button type="button" class="btn btn-ghost" id="logoutBtn">登出</button>
+      </div>
+    </nav>
+  </div>
+
+  <main class="app-main app-main--wide">
+    <header class="page-header">
+      <h1>我的任務</h1>
+      <p>以過去／現在／未來整理任務（新到舊）。可編輯或刪除自己的項目。</p>
+    </header>
+
+    <!-- 時間軸長線：主操作 -->
+    <section class="card" style="margin-bottom: 16px;">
+      <p class="card-title">時間軸</p>
+      <div class="time-rail-wrap">
+        <div class="time-rail" id="timeRail" role="tablist" aria-label="過去現在未來時間軸">
+          <button type="button" class="time-rail-seg" data-time="past" role="tab" aria-selected="false">
+            <span class="time-rail-label">過去</span>
+            <div class="time-rail-track">
+              <div class="time-rail-dots" id="railDotsPast"></div>
+            </div>
+          </button>
+          <button type="button" class="time-rail-seg is-active" data-time="present" role="tab" aria-selected="true">
+            <span class="time-rail-label">現在</span>
+            <div class="time-rail-track">
+              <div class="time-rail-dots" id="railDotsPresent"></div>
+            </div>
+          </button>
+          <button type="button" class="time-rail-seg" data-time="future" role="tab" aria-selected="false">
+            <span class="time-rail-label">未來</span>
+            <div class="time-rail-track">
+              <div class="time-rail-dots" id="railDotsFuture"></div>
+            </div>
+          </button>
+        </div>
+      </div>
+      <p class="time-rail-hint">點選前／中／後段切換列表 · 色點為有 dueDate 的任務（紅高／黃中／綠低）</p>
+    </section>
+
+    <section class="card">
+      <p class="card-title">任務列表</p>
+      <div class="time-filter" id="timeFilter">
+        <div class="time-main" role="group" aria-label="時間語意">
+          <button type="button" class="time-btn" data-time="past">過去</button>
+          <button type="button" class="time-btn is-active" data-time="present">現在</button>
+          <button type="button" class="time-btn" data-time="future">未來</button>
+        </div>
+        <div class="time-sub-row">
+          <label for="timeSub">細項</label>
+          <select id="timeSub" aria-label="時間細項篩選"></select>
+        </div>
+      </div>
+      <p class="muted" id="msg">載入中...</p>
+      <div class="table-wrap" style="margin-top: 12px;">
+        <table class="tasks" id="taskTable">
+          <colgroup>
+            <col class="col-id" />
+            <col class="col-title" />
+            <col class="col-desc" />
+            <col class="col-priority" />
+            <col class="col-status" />
+            <col class="col-due" />
+            <col class="col-countdown" />
+            <col class="col-actions" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="col-id">ID</th>
+              <th class="col-title">標題</th>
+              <th class="col-desc">描述</th>
+              <th class="col-priority">優先級</th>
+              <th class="col-status">狀態</th>
+              <th class="col-due">截止</th>
+              <th class="col-countdown">倒數</th>
+              <th class="col-actions">操作</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit modal -->
+  <div class="modal-overlay" id="editModal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+      <h2 id="editModalTitle">編輯任務</h2>
+      <p class="modal-sub">任務 ID：<span id="editTaskIdLabel">—</span></p>
+
+      <form id="editForm">
+        <input type="hidden" id="editTaskId" />
+
+        <div class="form-field">
+          <label for="editTitle">標題</label>
+          <input type="text" id="editTitle" required maxlength="200" />
+        </div>
+
+        <div class="form-field">
+          <label for="editDescription">描述</label>
+          <textarea id="editDescription" rows="3"></textarea>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-field">
+            <label for="editPriority">優先級</label>
+            <select id="editPriority">
+              <option value="LOW">LOW</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="HIGH">HIGH</option>
+              <option value="URGENT">URGENT</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="editStatus">狀態</label>
+            <select id="editStatus">
+              <option value="TODO">TODO</option>
+              <option value="IN_PROGRESS">IN_PROGRESS</option>
+              <option value="DONE">DONE</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-field">
+            <label for="editDueDate">截止日期</label>
+            <input type="date" id="editDueDate" />
+          </div>
+          <div class="form-field">
+            <label for="editDueTime">截止時間（可選）</label>
+            <input type="time" id="editDueTime" />
+          </div>
+        </div>
+        <p class="muted" style="font-size:12px;margin:0 0 8px;">未填時間 → 倒數以該日 23:59 為準。</p>
+
+        <p class="modal-error" id="editError"></p>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="editCancelBtn">取消</button>
+          <button type="submit" class="btn btn-primary" id="editSaveBtn">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN_KEY = 'nn_token';
+    const USER_KEY = 'nn_username';
+
+    /** @type {Map<number, object>} */
+    const taskCache = new Map();
+
+    /** 時間語意：past | present | future（預設現在） */
+    let currentTime = 'present';
+    let currentSub = 'all';
+
+    const SUB_OPTIONS = {
+      past: [
+        { value: 'all', label: '全部（完成＋逾期）' },
+        { value: 'done', label: '已完成' },
+        { value: 'overdue', label: '已逾期' }
+      ],
+      present: [
+        { value: 'all', label: '全部（今天／進行中／3天內）' },
+        { value: 'due_today', label: '今天到期' },
+        { value: 'in_progress', label: '進行中' },
+        { value: 'next_3_days', label: '未來 3 天內' }
+      ],
+      future: [
+        { value: 'open', label: '全部未完成' },
+        { value: 'scheduled', label: '已排日期' },
+        { value: 'unscheduled', label: '未排日期' },
+        { value: 'high', label: '高優先' }
+      ]
+    };
+
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function timeLabel() {
+      if (currentTime === 'past') return '過去';
+      if (currentTime === 'future') return '未來';
+      return '現在';
+    }
+
+    function subLabel() {
+      const opts = SUB_OPTIONS[currentTime] || [];
+      const hit = opts.find(function (o) { return o.value === currentSub; });
+      return hit ? hit.label : currentSub;
+    }
+
+    function filterLabel() {
+      return timeLabel() + ' · ' + subLabel();
+    }
+
+    function buildTasksQuery() {
+      const params = new URLSearchParams();
+      params.set('time', currentTime);
+      params.set('sub', currentSub || 'all');
+      return '?' + params.toString();
+    }
+
+    function fillSubOptions() {
+      const sel = document.getElementById('timeSub');
+      const opts = SUB_OPTIONS[currentTime] || [];
+      sel.innerHTML = '';
+      opts.forEach(function (o) {
+        const op = document.createElement('option');
+        op.value = o.value;
+        op.textContent = o.label;
+        sel.appendChild(op);
+      });
+      // 保留同名 sub；否則用第一個
+      const exists = opts.some(function (o) { return o.value === currentSub; });
+      if (!exists) currentSub = opts[0] ? opts[0].value : 'all';
+      sel.value = currentSub;
+    }
+
+    function authHeaders(extra) {
+      const headers = Object.assign({}, extra || {});
+      const token = getToken();
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      return headers;
+    }
+
+    function logout() {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      location.href = '/login.html';
+    }
+
+    function requireAuth() {
+      const token = getToken();
+      const username = localStorage.getItem(USER_KEY);
+      if (!token || !username) {
+        location.href = '/login.html';
+        return false;
+      }
+      document.getElementById('navUsername').textContent = username;
+      return true;
+    }
+
+    function priorityBadge(priority) {
+      const p = (priority || '').toUpperCase();
+      let cls = 'badge-medium';
+      if (p === 'LOW') cls = 'badge-low';
+      else if (p === 'HIGH') cls = 'badge-high';
+      else if (p === 'URGENT') cls = 'badge-urgent';
+      return '<span class="badge ' + cls + '">' + escapeHtml(p || '—') + '</span>';
+    }
+
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function setMsg(text) {
+      document.getElementById('msg').textContent = text;
+    }
+
+    function handleAuthFailure(status) {
+      if (status === 401 || status === 403) {
+        setMsg('Token 無效或已過期，請重新登入。');
+        setTimeout(logout, 800);
+        return true;
+      }
+      return false;
+    }
+
+    function renderTasks(tasks) {
+      const tbody = document.querySelector('#taskTable tbody');
+      tbody.innerHTML = '';
+      taskCache.clear();
+
+      if (!tasks.length) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="8" class="muted">此篩選條件下沒有任務。</td>';
+        tbody.appendChild(tr);
+        setMsg('共 0 筆 · ' + filterLabel() + ' · 新到舊');
+        return;
+      }
+
+      setMsg('共 ' + tasks.length + ' 筆 · ' + filterLabel() + ' · 新到舊');
+
+      tasks.forEach(function (t) {
+        taskCache.set(t.id, t);
+        const tr = document.createElement('tr');
+        tr.dataset.taskId = String(t.id);
+        const statusClass = t.status === 'DONE' ? 'done' : '';
+        const dueLabel = window.NNCountdown
+          ? window.NNCountdown.formatDueDisplay(t)
+          : (t.dueDate || '無');
+        const cdHtml = window.NNCountdown
+          ? window.NNCountdown.renderHtml(t, escapeHtml)
+          : '<span class="countdown">—</span>';
+        tr.innerHTML =
+          '<td class="col-id">' + escapeHtml(t.id) + '</td>' +
+          '<td class="col-title">' + escapeHtml(t.title) + '</td>' +
+          '<td class="col-desc">' + escapeHtml(t.description || '') + '</td>' +
+          '<td class="col-priority">' + priorityBadge(t.priority) + '</td>' +
+          '<td class="col-status ' + statusClass + '">' + escapeHtml(t.status) + '</td>' +
+          '<td class="col-due">' + escapeHtml(dueLabel) + '</td>' +
+          '<td class="col-countdown">' + cdHtml + '</td>' +
+          '<td class="col-actions"><div class="task-actions">' +
+            '<button type="button" class="btn btn-secondary btn-sm btn-edit" data-id="' + t.id + '">編輯</button>' +
+            '<button type="button" class="btn btn-danger btn-sm btn-delete" data-id="' + t.id + '">刪除</button>' +
+          '</div></td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    function refreshCountdowns() {
+      if (!window.NNCountdown) return;
+      // 1 秒：更新已有 live 時鐘的秒數
+      window.NNCountdown.tickLiveElements(document.getElementById('taskTable'), taskCache);
+      // 處理 live ↔ 靜態 切換（跨 24h 邊界）
+      document.querySelectorAll('#taskTable tbody tr[data-task-id]').forEach(function (tr) {
+        const id = Number(tr.dataset.taskId);
+        const t = taskCache.get(id);
+        if (!t) return;
+        const cell = tr.querySelector('.col-countdown');
+        if (!cell) return;
+        const hasLive = !!cell.querySelector('.countdown[data-live="1"]');
+        const cd = window.NNCountdown.countdownInfo(t);
+        if (cd.live !== hasLive) {
+          cell.innerHTML = window.NNCountdown.renderHtml(t, escapeHtml);
+        }
+      });
+    }
+
+    function updateRow(task) {
+      taskCache.set(task.id, task);
+      const tr = document.querySelector('tr[data-task-id="' + task.id + '"]');
+      if (!tr) {
+        loadTasks();
+        return;
+      }
+      const statusClass = task.status === 'DONE' ? 'done' : '';
+      tr.querySelector('.col-title').textContent = task.title || '';
+      tr.querySelector('.col-desc').textContent = task.description || '';
+      tr.querySelector('.col-priority').innerHTML = priorityBadge(task.priority);
+      const statusCell = tr.querySelector('.col-status');
+      statusCell.textContent = task.status || '';
+      statusCell.className = 'col-status' + (statusClass ? ' ' + statusClass : '');
+      tr.querySelector('.col-due').textContent = task.dueDate || '無';
+    }
+
+    function removeRow(taskId) {
+      taskCache.delete(taskId);
+      const tr = document.querySelector('tr[data-task-id="' + taskId + '"]');
+      if (tr) tr.remove();
+      const remaining = document.querySelectorAll('#taskTable tbody tr[data-task-id]').length;
+      if (remaining === 0) {
+        renderTasks([]);
+      } else {
+        setMsg('共 ' + remaining + ' 筆 · ' + filterLabel() + ' · 新到舊');
+      }
+    }
+
+    async function loadTasks() {
+      setMsg('載入中...');
+      try {
+        const r = await fetch('/api/tasks' + buildTasksQuery(), {
+          headers: authHeaders()
+        });
+
+        if (handleAuthFailure(r.status)) return;
+        if (!r.ok) {
+          setMsg('載入失敗：' + r.status);
+          return;
+        }
+
+        const tasks = await r.json();
+        renderTasks(tasks);
+      } catch (e) {
+        setMsg('請求失敗：' + e.message);
+      }
+    }
+
+    function todayYmd() {
+      const t = new Date();
+      const y = t.getFullYear();
+      const m = t.getMonth() + 1;
+      const d = t.getDate();
+      return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+    }
+
+    function priDotClass(priority) {
+      const p = (priority || 'MEDIUM').toUpperCase();
+      if (p === 'HIGH' || p === 'URGENT') return 'pri-urgent';
+      if (p === 'LOW') return 'pri-low';
+      return 'pri-medium';
+    }
+
+    /** 依 dueDate 粗分到過去／現在／未來 */
+    function bucketForDue(due) {
+      if (!due) return null;
+      const today = todayYmd();
+      if (due === today) return 'present';
+      if (due < today) return 'past';
+      return 'future';
+    }
+
+    function syncTimeUi() {
+      document.querySelectorAll('.time-main .time-btn').forEach(function (btn) {
+        btn.classList.toggle('is-active', btn.dataset.time === currentTime);
+      });
+      document.querySelectorAll('#timeRail .time-rail-seg').forEach(function (seg) {
+        const on = seg.dataset.time === currentTime;
+        seg.classList.toggle('is-active', on);
+        seg.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+    }
+
+    function setTimeBucket(time) {
+      currentTime = time;
+      syncTimeUi();
+      fillSubOptions();
+      loadTasks();
+    }
+
+    /**
+     * 時間軸事件點：取全部有 dueDate 的任務，粗分三段，
+     * 每段最多 8 點，依日期排開位置，色 = priority。
+     */
+    async function loadTimelineMarkers() {
+      try {
+        const r = await fetch('/api/tasks', { headers: authHeaders() });
+        if (!r.ok) return;
+        const all = await r.json();
+        const buckets = { past: [], present: [], future: [] };
+        all.forEach(function (t) {
+          if (!t.dueDate) return;
+          const b = bucketForDue(t.dueDate);
+          if (b) buckets[b].push(t);
+        });
+
+        renderRailDots('railDotsPast', buckets.past);
+        renderRailDots('railDotsPresent', buckets.present);
+        renderRailDots('railDotsFuture', buckets.future);
+      } catch (e) {
+        /* 標記失敗不影響列表 */
+      }
+    }
+
+    function renderRailDots(containerId, tasks) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      el.innerHTML = '';
+      if (!tasks.length) return;
+
+      // 日期排序後取樣
+      tasks.sort(function (a, b) {
+        return String(a.dueDate).localeCompare(String(b.dueDate));
+      });
+      const max = 8;
+      const sample = tasks.length <= max
+        ? tasks
+        : tasks.filter(function (_, i) {
+            return i % Math.ceil(tasks.length / max) === 0;
+          }).slice(0, max);
+
+      sample.forEach(function (t, i) {
+        const n = sample.length;
+        const pct = n === 1 ? 50 : (8 + (i / (n - 1)) * 84);
+        const dot = document.createElement('span');
+        dot.className = 'time-rail-dot ' + priDotClass(t.priority);
+        dot.style.left = pct + '%';
+        dot.title = (t.dueDate || '') + ' · ' + (t.title || '') + ' · ' + (t.priority || '');
+        el.appendChild(dot);
+      });
+    }
+
+    function bindFilters() {
+      document.querySelector('.time-main').addEventListener('click', function (e) {
+        const btn = e.target.closest('.time-btn');
+        if (!btn) return;
+        setTimeBucket(btn.dataset.time);
+      });
+      document.getElementById('timeRail').addEventListener('click', function (e) {
+        const seg = e.target.closest('.time-rail-seg');
+        if (!seg) return;
+        setTimeBucket(seg.dataset.time);
+      });
+      document.getElementById('timeSub').addEventListener('change', function () {
+        currentSub = this.value;
+        loadTasks();
+      });
+      fillSubOptions();
+      syncTimeUi();
+    }
+
+    async function deleteTask(taskId) {
+      const task = taskCache.get(taskId);
+      const title = task ? task.title : ('#' + taskId);
+      if (!confirm('確定要刪除任務「' + title + '」嗎？此操作無法復原。')) {
+        return;
+      }
+
+      try {
+        const r = await fetch('/api/tasks/' + taskId, {
+          method: 'DELETE',
+          headers: authHeaders()
+        });
+
+        if (handleAuthFailure(r.status)) return;
+
+        if (r.status === 204 || r.ok) {
+          removeRow(taskId);
+          loadTimelineMarkers();
+          return;
+        }
+
+        let detail = r.status;
+        try {
+          const body = await r.json();
+          if (body.message) detail = body.message;
+        } catch (e) { /* ignore */ }
+        alert('刪除失敗：' + detail);
+      } catch (e) {
+        alert('刪除請求失敗：' + e.message);
+      }
+    }
+
+    function openEditModal(taskId) {
+      const task = taskCache.get(taskId);
+      if (!task) {
+        alert('找不到任務資料，請重新整理列表。');
+        return;
+      }
+
+      document.getElementById('editTaskId').value = task.id;
+      document.getElementById('editTaskIdLabel').textContent = task.id;
+      document.getElementById('editTitle').value = task.title || '';
+      document.getElementById('editDescription').value = task.description || '';
+      document.getElementById('editPriority').value = task.priority || 'MEDIUM';
+      document.getElementById('editStatus').value = task.status || 'TODO';
+      document.getElementById('editDueDate').value = task.dueDate || '';
+      document.getElementById('editDueTime').value =
+        window.NNCountdown ? window.NNCountdown.dueTimeInputValue(task.dueTime) : '';
+      document.getElementById('editError').textContent = '';
+
+      const modal = document.getElementById('editModal');
+      modal.hidden = false;
+      document.getElementById('editTitle').focus();
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').hidden = true;
+      document.getElementById('editError').textContent = '';
+    }
+
+    async function saveEdit(e) {
+      e.preventDefault();
+      const taskId = Number(document.getElementById('editTaskId').value);
+      const title = document.getElementById('editTitle').value.trim();
+      const errEl = document.getElementById('editError');
+      errEl.textContent = '';
+
+      if (!title) {
+        errEl.textContent = '標題不可空白';
+        return;
+      }
+
+      const dueRaw = document.getElementById('editDueDate').value;
+      const timeRaw = document.getElementById('editDueTime').value;
+      const body = {
+        title: title,
+        description: document.getElementById('editDescription').value,
+        priority: document.getElementById('editPriority').value,
+        status: document.getElementById('editStatus').value,
+        dueDate: dueRaw ? dueRaw : null,
+        dueTime: timeRaw ? timeRaw + ':00' : null,
+        clearDueTime: !timeRaw
+      };
+
+      const saveBtn = document.getElementById('editSaveBtn');
+      saveBtn.disabled = true;
+
+      try {
+        const r = await fetch('/api/tasks/' + taskId, {
+          method: 'PUT',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(body)
+        });
+
+        if (handleAuthFailure(r.status)) return;
+
+        const data = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          errEl.textContent = data.message || ('更新失敗：' + r.status);
+          return;
+        }
+
+        closeEditModal();
+        // 依目前篩選重載，避免列已不符合條件仍留在畫面上
+        loadTasks();
+        loadTimelineMarkers();
+      } catch (err) {
+        errEl.textContent = '更新請求失敗：' + err.message;
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+
+    function bindTableActions() {
+      const tbody = document.querySelector('#taskTable tbody');
+      tbody.addEventListener('click', function (e) {
+        const editBtn = e.target.closest('.btn-edit');
+        if (editBtn) {
+          openEditModal(Number(editBtn.dataset.id));
+          return;
+        }
+        const delBtn = e.target.closest('.btn-delete');
+        if (delBtn) {
+          deleteTask(Number(delBtn.dataset.id));
+        }
+      });
+    }
+
+    function bindModal() {
+      document.getElementById('editCancelBtn').addEventListener('click', closeEditModal);
+      document.getElementById('editForm').addEventListener('submit', saveEdit);
+      document.getElementById('editModal').addEventListener('click', function (e) {
+        if (e.target === e.currentTarget) closeEditModal();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !document.getElementById('editModal').hidden) {
+          closeEditModal();
+        }
+      });
+    }
+
+    if (requireAuth()) {
+      document.getElementById('logoutBtn').addEventListener('click', logout);
+      bindTableActions();
+      bindModal();
+      bindFilters();
+      loadTimelineMarkers();
+      loadTasks();
+      // 每秒跳動 24h 內倒數
+      setInterval(refreshCountdowns, 1000);
+    }
+  </script>
+</body>
+</html>

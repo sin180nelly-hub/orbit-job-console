@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Navigator Nest | 日記</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="nest-ambient" aria-hidden="true">
+    <div class="glow-base"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <div class="orb orb-d"></div>
+    <div class="orb orb-e"></div>
+  </div>
+
+  <div class="nav-shell">
+    <nav class="app-nav">
+      <a class="brand" href="/index.html">
+        <span class="brand-mark">🪺</span>
+        <span>Navigator Nest</span>
+      </a>
+      <div class="nav-links">
+        <a href="/index.html">AI 助手</a>
+        <a href="/tasks.html">任務列表</a>
+        <a href="/calendar.html">日曆</a>
+        <a href="/diaries.html" class="active">日記</a>
+      </div>
+      <div class="nav-user">
+        <span class="user-name">已登入 <strong id="navUsername">—</strong></span>
+        <button type="button" class="btn btn-ghost" id="logoutBtn">登出</button>
+      </div>
+    </nav>
+  </div>
+
+  <main class="app-main">
+    <header class="page-header">
+      <h1>我的日記</h1>
+      <p>獨立日記本：來自 AI 建議存檔或手動儲存，僅顯示你自己的內容。</p>
+    </header>
+
+    <section class="card">
+      <p class="card-title">日記列表</p>
+      <p class="muted" id="msg">載入中...</p>
+      <div class="diary-list" id="diaryList" style="margin-top: 12px;"></div>
+    </section>
+  </main>
+
+  <script>
+    const TOKEN_KEY = 'nn_token';
+    const USER_KEY = 'nn_username';
+
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function authHeaders(extra) {
+      const headers = Object.assign({}, extra || {});
+      const token = getToken();
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      return headers;
+    }
+
+    function logout() {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      location.href = '/login.html';
+    }
+
+    function requireAuth() {
+      const token = getToken();
+      const username = localStorage.getItem(USER_KEY);
+      if (!token || !username) {
+        location.href = '/login.html';
+        return false;
+      }
+      document.getElementById('navUsername').textContent = username;
+      return true;
+    }
+
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function formatDateTime(iso) {
+      if (!iso) return '—';
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return String(iso);
+        return d.toLocaleString('zh-TW', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit'
+        });
+      } catch (e) {
+        return String(iso);
+      }
+    }
+
+    /** 日記所屬日：diaryDate 優先，null 則回退 createdAt 日期 */
+    function diaryDayOf(d) {
+      if (d.diaryDate) return d.diaryDate;
+      if (d.createdAt) return String(d.createdAt).slice(0, 10);
+      return null;
+    }
+
+    function formatDiaryDay(ymd) {
+      if (!ymd) return '—';
+      // ymd = YYYY-MM-DD
+      const p = String(ymd).split('-');
+      if (p.length === 3) return p[0] + '/' + Number(p[1]) + '/' + Number(p[2]);
+      return String(ymd);
+    }
+
+    function summarize(text, max) {
+      const t = (text || '').replace(/\s+/g, ' ').trim();
+      if (!t) return '（無內容）';
+      return t.length <= max ? t : t.slice(0, max) + '…';
+    }
+
+    /** diaryDate 新→舊，同日 createdAt 新→舊 */
+    function sortDiaries(list) {
+      return (list || []).slice().sort(function (a, b) {
+        const da = diaryDayOf(a) || '';
+        const db = diaryDayOf(b) || '';
+        if (da !== db) return db.localeCompare(da);
+        const ca = a.createdAt || '';
+        const cb = b.createdAt || '';
+        return String(cb).localeCompare(String(ca));
+      });
+    }
+
+    function setMsg(text) {
+      document.getElementById('msg').textContent = text;
+    }
+
+    function handleAuthFailure(status) {
+      if (status === 401 || status === 403) {
+        setMsg('Token 無效或已過期，請重新登入。');
+        setTimeout(logout, 800);
+        return true;
+      }
+      return false;
+    }
+
+    function renderDiaries(diaries) {
+      const list = document.getElementById('diaryList');
+      list.innerHTML = '';
+
+      const sorted = sortDiaries(diaries);
+
+      if (!sorted.length) {
+        setMsg('共 0 筆');
+        list.innerHTML = '<p class="muted">尚無日記。可到 AI 助手「建議並存入任務」自動寫入，或在回覆區按「存成日記」。</p>';
+        return;
+      }
+
+      setMsg('共 ' + sorted.length + ' 筆（依日記日新到舊）');
+
+      sorted.forEach(function (d) {
+        const item = document.createElement('article');
+        item.className = 'diary-item';
+        item.dataset.id = String(d.id);
+
+        const day = diaryDayOf(d);
+        const taskLine = d.taskId
+          ? '<p class="diary-task-link">關聯任務：' +
+            escapeHtml(d.taskTitle ? (d.taskTitle + ' (#' + d.taskId + ')') : ('#' + d.taskId)) +
+            '</p>'
+          : '<p class="diary-task-link">未關聯任務</p>';
+
+        item.innerHTML =
+          '<div class="diary-item-head">' +
+            '<div class="diary-item-meta">' +
+              '<div class="diary-item-date">' +
+                '📔 日記日 ' + escapeHtml(formatDiaryDay(day)) +
+                ' · #' + escapeHtml(d.id) +
+              '</div>' +
+              '<div class="diary-item-written">寫下時間 ' +
+                escapeHtml(formatDateTime(d.createdAt)) + '</div>' +
+              '<p class="diary-item-summary">' + escapeHtml(summarize(d.diaryText, 100)) + '</p>' +
+            '</div>' +
+            '<div class="diary-item-actions">' +
+              '<button type="button" class="btn btn-secondary btn-sm btn-toggle">展開</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm btn-edit-link" data-id="' + d.id + '">補關聯</button>' +
+              '<button type="button" class="btn btn-danger btn-sm btn-delete">刪除</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="diary-item-body">' +
+            '<div class="diary-block"><h4>日記日</h4><p>' + escapeHtml(day || '—') + '</p></div>' +
+            '<div class="diary-block"><h4>寫下時間</h4><p class="muted-block">' +
+              escapeHtml(formatDateTime(d.createdAt)) + '</p></div>' +
+            '<div class="diary-block"><h4>日記全文</h4><p>' + escapeHtml(d.diaryText || '') + '</p></div>' +
+            '<div class="diary-block"><h4>歌詞靈感</h4><p class="' +
+              (d.lyricInspiration ? '' : 'muted-block') + '">' +
+              escapeHtml(d.lyricInspiration || '（無）') + '</p></div>' +
+            '<div class="diary-block"><h4>當下原文</h4><p class="muted-block">' +
+              escapeHtml(d.sourceInput || '（無）') + '</p></div>' +
+            '<div class="diary-block">' + taskLine + '</div>' +
+            '<div class="diary-block diary-link-edit" hidden data-for="' + d.id + '">' +
+              '<h4>補選關聯任務 ID</h4>' +
+              '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+                '<input type="number" class="link-task-id" placeholder="taskId" min="1" ' +
+                  'value="' + (d.taskId || '') + '" style="width:120px;padding:8px 10px;border-radius:10px;' +
+                  'border:1px solid #475569;background:#0f172a;color:#e2e8f0;" />' +
+                '<button type="button" class="btn btn-primary btn-sm btn-save-link" data-id="' + d.id + '">儲存</button>' +
+                '<button type="button" class="btn btn-ghost btn-sm btn-clear-link" data-id="' + d.id + '">解除關聯</button>' +
+              '</div>' +
+              '<p class="muted" style="margin-top:6px;font-size:12px;">輸入你擁有的任務 id；或解除關聯。</p>' +
+            '</div>' +
+          '</div>';
+
+        list.appendChild(item);
+      });
+    }
+
+    async function loadDiaries() {
+      setMsg('載入中...');
+      try {
+        const r = await fetch('/api/diaries', { headers: authHeaders() });
+        if (handleAuthFailure(r.status)) return;
+        if (!r.ok) {
+          setMsg('載入失敗：' + r.status);
+          return;
+        }
+        const data = await r.json();
+        renderDiaries(data);
+      } catch (e) {
+        setMsg('請求失敗：' + e.message);
+      }
+    }
+
+    async function deleteDiary(id) {
+      if (!confirm('確定刪除這則日記 #' + id + '？')) return;
+      try {
+        const r = await fetch('/api/diaries/' + id, {
+          method: 'DELETE',
+          headers: authHeaders()
+        });
+        if (handleAuthFailure(r.status)) return;
+        if (r.status === 204 || r.ok) {
+          const el = document.querySelector('.diary-item[data-id="' + id + '"]');
+          if (el) el.remove();
+          const left = document.querySelectorAll('.diary-item').length;
+          if (left === 0) {
+            renderDiaries([]);
+          } else {
+            setMsg('共 ' + left + ' 筆（新到舊）');
+          }
+          return;
+        }
+        alert('刪除失敗：' + r.status);
+      } catch (e) {
+        alert('刪除請求失敗：' + e.message);
+      }
+    }
+
+    async function updateDiaryLink(id, body) {
+      const r = await fetch('/api/diaries/' + id, {
+        method: 'PUT',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
+      });
+      if (handleAuthFailure(r.status)) return false;
+      if (!r.ok) {
+        const data = await r.json().catch(function () { return {}; });
+        alert(data.message || ('更新失敗：' + r.status));
+        return false;
+      }
+      return true;
+    }
+
+    function bindList() {
+      document.getElementById('diaryList').addEventListener('click', function (e) {
+        const item = e.target.closest('.diary-item');
+        if (!item) return;
+
+        if (e.target.closest('.btn-delete')) {
+          e.stopPropagation();
+          deleteDiary(Number(item.dataset.id));
+          return;
+        }
+
+        if (e.target.closest('.btn-edit-link')) {
+          e.stopPropagation();
+          item.classList.add('is-open');
+          const panel = item.querySelector('.diary-link-edit');
+          if (panel) panel.hidden = false;
+          const tbtn = item.querySelector('.btn-toggle');
+          if (tbtn) tbtn.textContent = '收合';
+          return;
+        }
+
+        if (e.target.closest('.btn-save-link')) {
+          e.stopPropagation();
+          const id = Number(e.target.closest('.btn-save-link').dataset.id);
+          const input = item.querySelector('.link-task-id');
+          const raw = input && input.value ? Number(input.value) : null;
+          if (!raw) {
+            alert('請輸入 taskId，或按「解除關聯」');
+            return;
+          }
+          updateDiaryLink(id, { taskId: raw, clearTask: false }).then(function (ok) {
+            if (ok) loadDiaries();
+          });
+          return;
+        }
+
+        if (e.target.closest('.btn-clear-link')) {
+          e.stopPropagation();
+          const id = Number(e.target.closest('.btn-clear-link').dataset.id);
+          updateDiaryLink(id, { clearTask: true }).then(function (ok) {
+            if (ok) loadDiaries();
+          });
+          return;
+        }
+
+        // 點「展開」或標題區：切換全文
+        if (e.target.closest('.btn-toggle') || e.target.closest('.diary-item-meta') || e.target.closest('.diary-item-head')) {
+          if (e.target.closest('.diary-item-actions') && !e.target.closest('.btn-toggle')) return;
+          const open = item.classList.toggle('is-open');
+          const btn = item.querySelector('.btn-toggle');
+          if (btn) btn.textContent = open ? '收合' : '展開';
+        }
+      });
+    }
+
+    if (requireAuth()) {
+      document.getElementById('logoutBtn').addEventListener('click', logout);
+      bindList();
+      loadDiaries();
+    }
+  </script>
+</body>
+</html>

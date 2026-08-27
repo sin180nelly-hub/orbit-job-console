@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Navigator Nest | 日曆</title>
+  <link rel="stylesheet" href="/css/app.css" />
+  <script src="/js/countdown.js"></script>
+</head>
+<body>
+  <div class="nest-ambient" aria-hidden="true">
+    <div class="glow-base"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <div class="orb orb-d"></div>
+    <div class="orb orb-e"></div>
+  </div>
+
+  <div class="nav-shell">
+    <nav class="app-nav">
+      <a class="brand" href="/index.html">
+        <span class="brand-mark">🪺</span>
+        <span>Navigator Nest</span>
+      </a>
+      <div class="nav-links">
+        <a href="/index.html">AI 助手</a>
+        <a href="/tasks.html">任務列表</a>
+        <a href="/calendar.html" class="active">日曆</a>
+        <a href="/diaries.html">日記</a>
+      </div>
+      <div class="nav-user">
+        <span class="user-name">已登入 <strong id="navUsername">—</strong></span>
+        <button type="button" class="btn btn-ghost" id="logoutBtn">登出</button>
+      </div>
+    </nav>
+  </div>
+
+  <main class="app-main" style="max-width: 1100px;">
+    <header class="page-header">
+      <h1>任務日曆</h1>
+      <p>點日期可看任務與日記、新增行程或當日日記。倒數與色點規則不變。</p>
+    </header>
+
+    <div id="soonBanner" class="soon-banner" hidden></div>
+
+    <div class="cal-layout">
+      <section class="card">
+        <div class="cal-toolbar">
+          <h2 id="calTitle">—</h2>
+          <div class="cal-nav-btns">
+            <button type="button" class="btn btn-ghost btn-sm" id="btnPrev">‹ 上月</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnToday">今天</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnNext">下月 ›</button>
+          </div>
+        </div>
+
+        <div class="cal-weekdays" aria-hidden="true">
+          <span>日</span><span>一</span><span>二</span><span>三</span>
+          <span>四</span><span>五</span><span>六</span>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+
+        <div class="cal-legend">
+          <span><i class="swatch swatch-present"></i> 今天（紫框）</span>
+          <span><i class="swatch swatch-future"></i> 未來有任務（藍底）</span>
+          <span><i class="swatch swatch-past"></i> 過去有日記（咖啡底）</span>
+          <span><i class="cal-dot pri-urgent"></i> 任務 HIGH</span>
+          <span><i class="cal-dot pri-medium"></i> 任務 MEDIUM</span>
+          <span><i class="cal-dot pri-low"></i> 任務 LOW</span>
+          <span><i class="cal-dot diary-dot"></i> 日記（咖啡點）</span>
+        </div>
+        <p class="muted" id="calMsg" style="margin-top:12px;">載入中...</p>
+      </section>
+
+      <section class="card" id="sidePanel">
+        <h3 class="cal-side-title" id="sideTitle">選擇日期</h3>
+        <p class="cal-side-sub" id="sideSub">點月曆上的某一天。</p>
+
+        <div class="side-section">
+          <div class="side-section-head">
+            <h4>當日任務</h4>
+            <button type="button" class="btn btn-primary btn-sm" id="btnAddTask" disabled>+ 新增行程</button>
+          </div>
+          <div class="cal-task-list" id="dayTaskList"></div>
+        </div>
+
+        <div class="side-section">
+          <div class="side-section-head">
+            <h4>當日日記</h4>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnAddDiary" disabled>+ 新增當日日記</button>
+          </div>
+          <div id="dayDiaryList"></div>
+          <p class="muted" style="margin-top:8px;font-size:12px;">
+            完整日記本：<a href="/diaries.html" style="color:#67e8f9;">開啟日記頁</a>
+          </p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- 編輯任務 -->
+  <div class="modal-overlay" id="editModal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true">
+      <h2>編輯任務</h2>
+      <p class="modal-sub">任務 ID：<span id="editTaskIdLabel">—</span></p>
+      <form id="editForm">
+        <input type="hidden" id="editTaskId" />
+        <div class="form-field">
+          <label for="editTitle">標題</label>
+          <input type="text" id="editTitle" required maxlength="200" />
+        </div>
+        <div class="form-field">
+          <label for="editDescription">描述</label>
+          <textarea id="editDescription" rows="3"></textarea>
+        </div>
+        <div class="form-row-2">
+          <div class="form-field">
+            <label for="editPriority">優先級</label>
+            <select id="editPriority">
+              <option value="LOW">LOW</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="HIGH">HIGH</option>
+              <option value="URGENT">URGENT</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="editStatus">狀態</label>
+            <select id="editStatus">
+              <option value="TODO">TODO</option>
+              <option value="IN_PROGRESS">IN_PROGRESS</option>
+              <option value="DONE">DONE</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-field">
+            <label for="editDueDate">截止日期</label>
+            <input type="date" id="editDueDate" />
+          </div>
+          <div class="form-field">
+            <label for="editDueTime">截止時間（可選）</label>
+            <input type="time" id="editDueTime" />
+          </div>
+        </div>
+        <p class="muted" style="font-size:12px;margin:0 0 8px;">未填時間時，倒數以該日 23:59 為準。</p>
+        <p class="modal-error" id="editError"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="editCancelBtn">取消</button>
+          <button type="submit" class="btn btn-primary" id="editSaveBtn">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 新增行程 -->
+  <div class="modal-overlay" id="createTaskModal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true">
+      <h2>新增行程</h2>
+      <p class="modal-sub">截止日期：<strong id="createTaskDueLabel">—</strong></p>
+      <form id="createTaskForm">
+        <div class="form-field">
+          <label for="createTitle">標題</label>
+          <input type="text" id="createTitle" required maxlength="200" placeholder="行程標題" />
+        </div>
+        <div class="form-field">
+          <label for="createDescription">描述</label>
+          <textarea id="createDescription" rows="3" placeholder="可選"></textarea>
+        </div>
+        <div class="form-row-2">
+          <div class="form-field">
+            <label for="createPriority">優先級</label>
+            <select id="createPriority">
+              <option value="LOW">LOW</option>
+              <option value="MEDIUM" selected>MEDIUM</option>
+              <option value="HIGH">HIGH</option>
+              <option value="URGENT">URGENT</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="createStatus">狀態</label>
+            <select id="createStatus">
+              <option value="TODO" selected>TODO</option>
+              <option value="IN_PROGRESS">IN_PROGRESS</option>
+              <option value="DONE">DONE</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label for="createDueTime">截止時間（可選，日期為所選日）</label>
+          <input type="time" id="createDueTime" />
+        </div>
+        <p class="muted" style="font-size:12px;margin:0 0 8px;">未填則倒數以當日 23:59 為準。</p>
+        <p class="modal-error" id="createTaskError"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="createTaskCancelBtn">取消</button>
+          <button type="submit" class="btn btn-primary" id="createTaskSaveBtn">建立</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 新增當日日記 -->
+  <div class="modal-overlay" id="createDiaryModal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true">
+      <h2>新增當日日記</h2>
+      <p class="modal-sub">日記日期：<strong id="createDiaryDateLabel">—</strong></p>
+      <form id="createDiaryForm">
+        <div class="form-field">
+          <label for="createDiarySource">當下想法／原文（可選）</label>
+          <textarea id="createDiarySource" rows="2" placeholder="今天發生什麼？"></textarea>
+        </div>
+        <div class="form-field">
+          <label for="createDiaryText">日記本文</label>
+          <textarea id="createDiaryText" rows="5" required placeholder="寫下這一天…"></textarea>
+        </div>
+        <div class="form-field">
+          <label for="createDiaryLyric">歌詞靈感（可選）</label>
+          <input type="text" id="createDiaryLyric" placeholder="一句歌詞或畫面" />
+        </div>
+        <div class="form-field">
+          <label for="createDiaryTask">關聯當日任務（可選）</label>
+          <select id="createDiaryTask">
+            <option value="">不關聯</option>
+          </select>
+        </div>
+        <p class="modal-error" id="createDiaryError"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="createDiaryCancelBtn">取消</button>
+          <button type="submit" class="btn btn-primary" id="createDiarySaveBtn">儲存日記</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 編輯日記關聯任務 -->
+  <div class="modal-overlay" id="editDiaryLinkModal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true">
+      <h2>編輯關聯任務</h2>
+      <p class="modal-sub">日記 <strong id="editDiaryLinkLabel">—</strong></p>
+      <form id="editDiaryLinkForm">
+        <input type="hidden" id="editDiaryId" />
+        <div class="form-field">
+          <label for="editDiaryTask">關聯當日任務</label>
+          <select id="editDiaryTask">
+            <option value="">不關聯</option>
+          </select>
+        </div>
+        <p class="modal-error" id="editDiaryLinkError"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="editDiaryLinkCancelBtn">取消</button>
+          <button type="submit" class="btn btn-primary">儲存關聯</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 查看日記全文 -->
+  <div class="modal-overlay" id="viewDiaryModal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true">
+      <h2>日記全文</h2>
+      <p class="modal-sub">ID：<span id="viewDiaryIdLabel">—</span> · 日期：<span id="viewDiaryDateLabel">—</span></p>
+      <div class="diary-block" style="margin-bottom:12px;">
+        <h4 style="margin:0 0 6px;font-size:11px;color:#a5f3fc;letter-spacing:.06em;text-transform:uppercase;">日記</h4>
+        <p id="viewDiaryText" style="margin:0;white-space:pre-wrap;color:#e2e8f0;font-size:14px;line-height:1.55;"></p>
+      </div>
+      <div class="diary-block" style="margin-bottom:12px;">
+        <h4 style="margin:0 0 6px;font-size:11px;color:#a5f3fc;letter-spacing:.06em;text-transform:uppercase;">原文</h4>
+        <p id="viewDiarySource" class="muted" style="margin:0;white-space:pre-wrap;font-size:13px;"></p>
+      </div>
+      <div class="diary-block" style="margin-bottom:12px;">
+        <h4 style="margin:0 0 6px;font-size:11px;color:#a5f3fc;letter-spacing:.06em;text-transform:uppercase;">歌詞</h4>
+        <p id="viewDiaryLyric" class="muted" style="margin:0;white-space:pre-wrap;font-size:13px;"></p>
+      </div>
+      <div class="diary-block" style="margin-bottom:12px;">
+        <h4 style="margin:0 0 6px;font-size:11px;color:#a5f3fc;letter-spacing:.06em;text-transform:uppercase;">關聯任務</h4>
+        <p id="viewDiaryTask" class="muted" style="margin:0;font-size:13px;"></p>
+      </div>
+      <div class="modal-actions">
+        <a class="btn btn-secondary" href="/diaries.html">到日記頁</a>
+        <button type="button" class="btn btn-primary" id="viewDiaryCloseBtn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN_KEY = 'nn_token';
+    const USER_KEY = 'nn_username';
+    const SOON_DAYS = 3;
+
+    const now = new Date();
+    let viewYear = now.getFullYear();
+    let viewMonth = now.getMonth() + 1;
+    /** @type {object[]} */
+    let monthTasks = [];
+    /** @type {object[]} */
+    let monthDiaries = [];
+    /** 全任務（給即將到期橫幅，可跨月） */
+    let allTasksForSoon = [];
+    /** @type {Map<number, object>} */
+    const taskById = new Map();
+    /** @type {Map<number, object>} */
+    const diaryById = new Map();
+    let selectedDate = null;
+    /** 從橫幅跳轉後要高亮／開啟編輯的任務 id */
+    let pendingFocusTaskId = null;
+
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function authHeaders(extra) {
+      const headers = Object.assign({}, extra || {});
+      const token = getToken();
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      return headers;
+    }
+
+    function logout() {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      location.href = '/login.html';
+    }
+
+    function requireAuth() {
+      const token = getToken();
+      const username = localStorage.getItem(USER_KEY);
+      if (!token || !username) {
+        location.href = '/login.html';
+        return false;
+      }
+      document.getElementById('navUsername').textContent = username;
+      return true;
+    }
+
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function pad2(n) {
+      return n < 10 ? '0' + n : String(n);
+    }
+
+    function toYmd(y, m, d) {
+      return y + '-' + pad2(m) + '-' + pad2(d);
+    }
+
+    function todayYmd() {
+      const t = new Date();
+      return toYmd(t.getFullYear(), t.getMonth() + 1, t.getDate());
+    }
+
+    function parseYmd(ymd) {
+      if (!ymd) return null;
+      const p = ymd.split('-').map(Number);
+      return new Date(p[0], p[1] - 1, p[2]);
+    }
+
+    function daysBetween(fromYmd, toYmd) {
+      const a = parseYmd(fromYmd);
+      const b = parseYmd(toYmd);
+      if (!a || !b) return null;
+      return Math.round((b - a) / 86400000);
+    }
+
+    function diaryDateOf(d) {
+      if (d.diaryDate) return d.diaryDate;
+      if (d.createdAt) return String(d.createdAt).slice(0, 10);
+      return null;
+    }
+
+    function summarize(text, max) {
+      const t = (text || '').replace(/\s+/g, ' ').trim();
+      if (!t) return '（無內容）';
+      return t.length <= max ? t : t.slice(0, max) + '…';
+    }
+
+    /** 小點 = priority */
+    function priClass(priority) {
+      const p = (priority || 'MEDIUM').toUpperCase();
+      if (p === 'HIGH' || p === 'URGENT') return 'pri-urgent';
+      if (p === 'LOW') return 'pri-low';
+      return 'pri-medium';
+    }
+
+    /** 選取高亮：純依「該日相對今天」→ 未來藍 / 今天紫 / 過去咖啡 */
+    function selectTimeClass(ymd) {
+      const today = todayYmd();
+      if (!ymd) return 'is-select-past';
+      if (ymd === today) return 'is-select-present';
+      if (ymd > today) return 'is-select-future';
+      return 'is-select-past';
+    }
+
+    function tasksOnDate(ymd, byDate) {
+      return (ymd && byDate[ymd]) ? byDate[ymd] : [];
+    }
+
+    function linkLabelForDiary(d) {
+      if (d.taskTitle) return '🔗 ' + d.taskTitle + (d.taskId ? ' (#' + d.taskId + ')' : '');
+      if (d.taskId) {
+        const t = taskById.get(d.taskId);
+        if (t) return '🔗 ' + t.title + ' (#' + d.taskId + ')';
+        return '🔗 任務 #' + d.taskId;
+      }
+      return '未關聯任務';
+    }
+
+    function priorityBadge(priority) {
+      const p = (priority || '').toUpperCase();
+      let cls = 'badge-medium';
+      if (p === 'LOW') cls = 'badge-low';
+      else if (p === 'HIGH') cls = 'badge-high';
+      else if (p === 'URGENT') cls = 'badge-urgent';
+      return '<span class="badge ' + cls + '">' + escapeHtml(p || '—') + '</span>';
+    }
+
+    function countdownInfo(task) {
+      if (window.NNCountdown) return window.NNCountdown.countdownInfo(task);
+      // fallback
+      if (task.status === 'DONE') return { text: '已完成', cls: 'is-done' };
+      if (!task.dueDate) return { text: '無截止日', cls: 'is-ok' };
+      return { text: task.dueDate, cls: 'is-ok' };
+    }
+
+    function formatDueLabel(task) {
+      if (window.NNCountdown) return window.NNCountdown.formatDueDisplay(task);
+      return task.dueDate || '無';
+    }
+
+    function handleAuthFailure(status) {
+      if (status === 401 || status === 403) {
+        document.getElementById('calMsg').textContent = 'Token 無效，請重新登入。';
+        setTimeout(logout, 800);
+        return true;
+      }
+      return false;
+    }
+
+    function tasksByDateMap() {
+      const map = {};
+      monthTasks.forEach(function (t) {
+        if (!t.dueDate) return;
+        if (!map[t.dueDate]) map[t.dueDate] = [];
+        map[t.dueDate].push(t);
+      });
+      return map;
+    }
+
+    function diariesForDate(ymd) {
+      return monthDiaries.filter(function (d) {
+        return diaryDateOf(d) === ymd;
+      });
+    }
+
+    function renderSoonBanner() {
+      const banner = document.getElementById('soonBanner');
+      const soonMs = SOON_DAYS * 24 * 60 * 60 * 1000;
+      const source = (allTasksForSoon && allTasksForSoon.length) ? allTasksForSoon : monthTasks;
+      const soon = source.filter(function (t) {
+        if (t.status === 'DONE' || !t.dueDate) return false;
+        const c = countdownInfo(t);
+        if (c.ms == null) return false;
+        return c.ms < soonMs;
+      }).sort(function (a, b) {
+        const da = window.NNCountdown ? window.NNCountdown.deadlineOf(a) : null;
+        const db = window.NNCountdown ? window.NNCountdown.deadlineOf(b) : null;
+        return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+      });
+
+      if (!soon.length) {
+        banner.hidden = true;
+        banner.innerHTML = '';
+        return;
+      }
+
+      let html = '' +
+        '<div class="soon-banner-head">' +
+          '<p class="soon-title">⚠ 即將到期／已逾期</p>' +
+          '<p class="soon-sub">' + soon.length + ' 筆 · ' + SOON_DAYS + ' 天內 · 點卡片跳日編輯</p>' +
+        '</div>' +
+        '<ul class="soon-banner-grid">';
+      soon.forEach(function (t) {
+        const cdHtml = window.NNCountdown
+          ? window.NNCountdown.renderHtml(t, escapeHtml)
+          : '<span class="countdown">' + escapeHtml(countdownInfo(t).text) + '</span>';
+        html += '<li class="soon-item" role="button" tabindex="0" ' +
+          'data-task-id="' + escapeHtml(t.id) + '" ' +
+          'data-due="' + escapeHtml(t.dueDate) + '" ' +
+          'title="跳到 ' + escapeHtml(t.dueDate) + ' · ' + escapeHtml(t.title) + '">' +
+          cdHtml +
+          '<span class="soon-item-body">' +
+            '<span class="soon-item-title">' + escapeHtml(t.title) + '</span>' +
+            '<span class="soon-item-meta">' + escapeHtml(formatDueLabel(t)) +
+              ' · ' + escapeHtml(t.priority || '') + '</span>' +
+          '</span>' +
+          '</li>';
+      });
+      html += '</ul>';
+      banner.innerHTML = html;
+      banner.hidden = false;
+    }
+
+    /**
+     * 從橫幅點任務：切年月 → 選中 dueDate → 高亮卡片 → 開編輯
+     */
+    async function jumpToTaskFromSoon(taskId, dueYmd) {
+      if (!dueYmd) {
+        alert('此任務沒有截止日期');
+        return;
+      }
+      const parts = String(dueYmd).split('-').map(Number);
+      if (parts.length < 3) return;
+
+      pendingFocusTaskId = Number(taskId);
+      viewYear = parts[0];
+      viewMonth = parts[1];
+      selectedDate = dueYmd;
+
+      await loadMonth();
+
+      // loadMonth 結束後 focus
+      focusPendingTask();
+    }
+
+    function focusPendingTask() {
+      if (pendingFocusTaskId == null) return;
+      const id = pendingFocusTaskId;
+      pendingFocusTaskId = null;
+
+      // 確保 task 在 cache（跨月已載入 monthTasks）
+      let task = taskById.get(id);
+      if (!task && allTasksForSoon) {
+        task = allTasksForSoon.find(function (t) { return t.id === id; });
+        if (task) taskById.set(id, task);
+      }
+
+      // 高亮右側卡片
+      const card = document.querySelector('.cal-task-card[data-task-id="' + id + '"]');
+      if (card) {
+        card.classList.add('is-flash');
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        setTimeout(function () { card.classList.remove('is-flash'); }, 2800);
+      }
+
+      // 開啟編輯（方便改狀態）
+      if (task || taskById.get(id)) {
+        setTimeout(function () {
+          openEditModal(id);
+        }, 280);
+      }
+    }
+
+    function renderCalendar() {
+      document.getElementById('calTitle').textContent = viewYear + ' 年 ' + viewMonth + ' 月';
+      const grid = document.getElementById('calGrid');
+      grid.innerHTML = '';
+
+      const byDate = tasksByDateMap();
+      const first = new Date(viewYear, viewMonth - 1, 1);
+      const startWeekday = first.getDay();
+      const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
+      const prevMonthDays = new Date(viewYear, viewMonth - 1, 0).getDate();
+
+      const cells = [];
+      for (let i = 0; i < startWeekday; i++) {
+        const d = prevMonthDays - startWeekday + 1 + i;
+        cells.push({ outside: true, day: d, ymd: null });
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        cells.push({ outside: false, day: d, ymd: toYmd(viewYear, viewMonth, d) });
+      }
+      while (cells.length % 7 !== 0) {
+        cells.push({ outside: true, day: cells.length, ymd: null });
+      }
+      let nextD = 1;
+      for (let i = startWeekday + daysInMonth; i < cells.length; i++) {
+        cells[i].day = nextD++;
+      }
+
+      const today = todayYmd();
+      cells.forEach(function (cell) {
+        const el = document.createElement('div');
+        el.className = 'cal-cell';
+        if (cell.outside) el.classList.add('is-outside');
+        if (cell.ymd) el.dataset.ymd = cell.ymd;
+
+        // 時間格語意 class
+        if (cell.ymd === today) {
+          el.classList.add('is-today');
+        } else if (cell.ymd && cell.ymd > today) {
+          el.classList.add('is-future-day');
+        } else if (cell.ymd && cell.ymd < today) {
+          el.classList.add('is-past-day');
+        }
+
+        const dayTasks = tasksOnDate(cell.ymd, byDate);
+        const hasTask = dayTasks.length > 0;
+        const hasDiary = !!(cell.ymd && diariesForDate(cell.ymd).length);
+        if (hasTask) el.classList.add('has-task');
+        if (hasDiary) el.classList.add('has-diary');
+
+        // 點選高亮：純看日期相對今天（未來藍／今天紫／過去咖啡）
+        if (cell.ymd && cell.ymd === selectedDate) {
+          el.classList.add('is-selected');
+          el.classList.add(selectTimeClass(cell.ymd));
+        }
+
+        let inner = '<div class="cal-cell-day">' + cell.day + '</div>';
+        /*
+         * 點語意：
+         * - 任務點 = priority 紅/黃/綠
+         * - 日記點 = 咖啡
+         * - 純日記日：只顯示咖啡點
+         * - 同日任務+日記：兩者並存
+         */
+        const dayDiaries = hasDiary ? diariesForDate(cell.ymd) : [];
+        if (hasTask || hasDiary) {
+          inner += '<div class="cal-dots">';
+          if (hasTask) {
+            dayTasks.slice(0, 3).forEach(function (t) {
+              inner += '<span class="cal-dot ' + priClass(t.priority) + '" title="任務：' +
+                escapeHtml(t.title) + '"></span>';
+            });
+          }
+          if (hasDiary) {
+            // 最多 2 個咖啡點代表有日記（避免過擠）
+            const diaryDots = Math.min(dayDiaries.length, 2);
+            for (let i = 0; i < diaryDots; i++) {
+              inner += '<span class="cal-dot diary-dot" title="日記"></span>';
+            }
+          }
+          inner += '</div>';
+          const extra = (hasTask ? Math.max(0, dayTasks.length - 3) : 0)
+            + (hasDiary ? Math.max(0, dayDiaries.length - 2) : 0);
+          if (extra > 0) {
+            inner += '<div class="cal-cell-more">+' + extra + '</div>';
+          }
+        }
+        el.innerHTML = inner;
+
+        if (!cell.outside && cell.ymd) {
+          el.addEventListener('click', function () {
+            selectDate(cell.ymd);
+          });
+        }
+        grid.appendChild(el);
+      });
+    }
+
+    function selectDate(ymd) {
+      selectedDate = ymd;
+      document.getElementById('btnAddTask').disabled = false;
+      document.getElementById('btnAddDiary').disabled = false;
+      renderCalendar();
+      renderDayPanel();
+    }
+
+    function renderDayPanel() {
+      const listEl = document.getElementById('dayTaskList');
+      const diaryEl = document.getElementById('dayDiaryList');
+      const title = document.getElementById('sideTitle');
+      const sub = document.getElementById('sideSub');
+
+      if (!selectedDate) {
+        title.textContent = '選擇日期';
+        sub.textContent = '點月曆上的某一天，查看任務與日記。';
+        listEl.innerHTML = '';
+        diaryEl.innerHTML = '';
+        document.getElementById('btnAddTask').disabled = true;
+        document.getElementById('btnAddDiary').disabled = true;
+        return;
+      }
+
+      title.textContent = selectedDate;
+      const tasks = monthTasks.filter(function (t) { return t.dueDate === selectedDate; });
+      const diaries = diariesForDate(selectedDate);
+      sub.textContent = '任務 ' + tasks.length + ' · 日記 ' + diaries.length;
+
+      listEl.innerHTML = '';
+      if (!tasks.length) {
+        listEl.innerHTML = '<p class="muted">這一天沒有到期任務，可按「新增行程」。</p>';
+      } else {
+        tasks.forEach(function (t) {
+          const card = document.createElement('div');
+          card.className = 'cal-task-card';
+          card.dataset.taskId = String(t.id);
+          const cdHtml = window.NNCountdown
+            ? window.NNCountdown.renderHtml(t, escapeHtml)
+            : '<span class="countdown">' + escapeHtml(countdownInfo(t).text) + '</span>';
+          card.innerHTML =
+            '<p class="t-title">' + escapeHtml(t.title) + '</p>' +
+            '<div class="t-meta">' +
+              priorityBadge(t.priority) +
+              '<span>' + escapeHtml(t.status) + '</span>' +
+              cdHtml +
+            '</div>';
+          card.addEventListener('click', function () { openEditModal(t.id); });
+          listEl.appendChild(card);
+        });
+      }
+
+      diaryEl.innerHTML = '';
+      if (!diaries.length) {
+        diaryEl.innerHTML = '<p class="muted">這一天尚無日記，可按「新增當日日記」（可關聯當日任務）。</p>';
+      } else {
+        diaries.forEach(function (d) {
+          const card = document.createElement('div');
+          card.className = 'cal-diary-card';
+          card.dataset.id = String(d.id);
+          const linkText = linkLabelForDiary(d);
+          card.innerHTML =
+            '<p class="d-summary">' + escapeHtml(summarize(d.diaryText, 90)) + '</p>' +
+            '<p class="diary-task-link" style="margin:0 0 8px;font-size:12px;">' +
+              escapeHtml(linkText) + '</p>' +
+            '<div class="d-full">' +
+              '<span class="label">全文</span><p>' + escapeHtml(d.diaryText || '') + '</p>' +
+              '<span class="label">原文</span><p class="muted">' + escapeHtml(d.sourceInput || '（無）') + '</p>' +
+              '<span class="label">歌詞</span><p class="muted">' + escapeHtml(d.lyricInspiration || '（無）') + '</p>' +
+              '<span class="label">關聯任務</span><p class="muted">' + escapeHtml(linkText) + '</p>' +
+            '</div>' +
+            '<div class="d-actions">' +
+              '<button type="button" class="btn btn-secondary btn-sm btn-expand">展開</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm btn-view">查看全文</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm btn-link-task">編輯關聯</button>' +
+              '<a class="btn btn-ghost btn-sm" href="/diaries.html">日記頁</a>' +
+            '</div>';
+          card.querySelector('.btn-expand').addEventListener('click', function (e) {
+            e.stopPropagation();
+            const open = card.classList.toggle('is-open');
+            e.target.textContent = open ? '收合' : '展開';
+          });
+          card.querySelector('.btn-view').addEventListener('click', function (e) {
+            e.stopPropagation();
+            openViewDiary(d);
+          });
+          card.querySelector('.btn-link-task').addEventListener('click', function (e) {
+            e.stopPropagation();
+            openEditDiaryLink(d);
+          });
+          diaryEl.appendChild(card);
+        });
+      }
+    }
+
+    async function loadMonth() {
+      document.getElementById('calMsg').textContent = '載入中...';
+      try {
+        const tUrl = '/api/tasks/calendar?year=' + viewYear + '&month=' + viewMonth;
+        const dUrl = '/api/diaries/calendar?year=' + viewYear + '&month=' + viewMonth;
+        const [tr, dr, ar] = await Promise.all([
+          fetch(tUrl, { headers: authHeaders() }),
+          fetch(dUrl, { headers: authHeaders() }),
+          fetch('/api/tasks', { headers: authHeaders() })
+        ]);
+
+        if (handleAuthFailure(tr.status) || handleAuthFailure(dr.status)) return;
+        if (!tr.ok) {
+          document.getElementById('calMsg').textContent = '任務載入失敗：' + tr.status;
+          return;
+        }
+        if (!dr.ok) {
+          document.getElementById('calMsg').textContent = '日記載入失敗：' + dr.status;
+          return;
+        }
+
+        monthTasks = await tr.json();
+        monthDiaries = await dr.json();
+        if (ar.ok) {
+          allTasksForSoon = await ar.json();
+        } else {
+          allTasksForSoon = monthTasks.slice();
+        }
+
+        taskById.clear();
+        diaryById.clear();
+        monthTasks.forEach(function (t) { taskById.set(t.id, t); });
+        // 橫幅跨月任務也放入 cache，方便跳轉後開編輯
+        allTasksForSoon.forEach(function (t) {
+          if (!taskById.has(t.id)) taskById.set(t.id, t);
+        });
+        monthDiaries.forEach(function (d) { diaryById.set(d.id, d); });
+
+        // 若有 pending 跳轉，selectedDate 已設好；否則預設今天／月初
+        if (pendingFocusTaskId == null) {
+          const t = todayYmd();
+          const inThisMonth = t.startsWith(viewYear + '-' + pad2(viewMonth));
+          if (!selectedDate || !selectedDate.startsWith(viewYear + '-' + pad2(viewMonth))) {
+            selectedDate = inThisMonth ? t : toYmd(viewYear, viewMonth, 1);
+          }
+        }
+
+        document.getElementById('btnAddTask').disabled = !selectedDate;
+        document.getElementById('btnAddDiary').disabled = !selectedDate;
+
+        renderSoonBanner();
+        renderCalendar();
+        renderDayPanel();
+        document.getElementById('calMsg').textContent =
+          '本月任務 ' + monthTasks.length + ' · 日記 ' + monthDiaries.length;
+      } catch (e) {
+        document.getElementById('calMsg').textContent = '請求失敗：' + e.message;
+      }
+    }
+
+    function shiftMonth(delta) {
+      viewMonth += delta;
+      if (viewMonth < 1) { viewMonth = 12; viewYear -= 1; }
+      else if (viewMonth > 12) { viewMonth = 1; viewYear += 1; }
+      selectedDate = null;
+      loadMonth();
+    }
+
+    function goToday() {
+      const t = new Date();
+      viewYear = t.getFullYear();
+      viewMonth = t.getMonth() + 1;
+      selectedDate = todayYmd();
+      loadMonth();
+    }
+
+    /* ── Task edit ── */
+    function openEditModal(taskId) {
+      const task = taskById.get(taskId);
+      if (!task) { alert('找不到任務'); return; }
+      document.getElementById('editTaskId').value = task.id;
+      document.getElementById('editTaskIdLabel').textContent = task.id;
+      document.getElementById('editTitle').value = task.title || '';
+      document.getElementById('editDescription').value = task.description || '';
+      document.getElementById('editPriority').value = task.priority || 'MEDIUM';
+      document.getElementById('editStatus').value = task.status || 'TODO';
+      document.getElementById('editDueDate').value = task.dueDate || '';
+      document.getElementById('editDueTime').value =
+        window.NNCountdown ? window.NNCountdown.dueTimeInputValue(task.dueTime) : '';
+      document.getElementById('editError').textContent = '';
+      document.getElementById('editModal').hidden = false;
+      document.getElementById('editTitle').focus();
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').hidden = true;
+    }
+
+    async function saveEdit(e) {
+      e.preventDefault();
+      const taskId = Number(document.getElementById('editTaskId').value);
+      const title = document.getElementById('editTitle').value.trim();
+      const errEl = document.getElementById('editError');
+      errEl.textContent = '';
+      if (!title) { errEl.textContent = '標題不可空白'; return; }
+
+      const dueRaw = document.getElementById('editDueDate').value;
+      const timeRaw = document.getElementById('editDueTime').value;
+      const body = {
+        title: title,
+        description: document.getElementById('editDescription').value,
+        priority: document.getElementById('editPriority').value,
+        status: document.getElementById('editStatus').value,
+        dueDate: dueRaw ? dueRaw : null,
+        dueTime: timeRaw ? timeRaw + ':00' : null,
+        clearDueTime: !timeRaw
+      };
+
+      const saveBtn = document.getElementById('editSaveBtn');
+      saveBtn.disabled = true;
+      try {
+        const r = await fetch('/api/tasks/' + taskId, {
+          method: 'PUT',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(body)
+        });
+        if (handleAuthFailure(r.status)) return;
+        const data = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          errEl.textContent = data.message || ('更新失敗：' + r.status);
+          return;
+        }
+        closeEditModal();
+        if (data.dueDate) {
+          selectedDate = data.dueDate;
+          const p = data.dueDate.split('-').map(Number);
+          viewYear = p[0];
+          viewMonth = p[1];
+        }
+        await loadMonth();
+      } catch (err) {
+        errEl.textContent = '更新請求失敗：' + err.message;
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+
+    /* ── Create task ── */
+    function openCreateTaskModal() {
+      if (!selectedDate) return;
+      document.getElementById('createTaskDueLabel').textContent = selectedDate;
+      document.getElementById('createTitle').value = '';
+      document.getElementById('createDescription').value = '';
+      document.getElementById('createPriority').value = 'MEDIUM';
+      document.getElementById('createStatus').value = 'TODO';
+      document.getElementById('createDueTime').value = '';
+      document.getElementById('createTaskError').textContent = '';
+      document.getElementById('createTaskModal').hidden = false;
+      document.getElementById('createTitle').focus();
+    }
+
+    function closeCreateTaskModal() {
+      document.getElementById('createTaskModal').hidden = true;
+    }
+
+    async function saveCreateTask(e) {
+      e.preventDefault();
+      if (!selectedDate) return;
+      const title = document.getElementById('createTitle').value.trim();
+      const errEl = document.getElementById('createTaskError');
+      errEl.textContent = '';
+      if (!title) { errEl.textContent = '標題不可空白'; return; }
+
+      const timeRaw = document.getElementById('createDueTime').value;
+      const body = {
+        title: title,
+        description: document.getElementById('createDescription').value,
+        priority: document.getElementById('createPriority').value,
+        status: document.getElementById('createStatus').value,
+        dueDate: selectedDate,
+        dueTime: timeRaw ? timeRaw + ':00' : null
+      };
+
+      const btn = document.getElementById('createTaskSaveBtn');
+      btn.disabled = true;
+      try {
+        const r = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(body)
+        });
+        if (handleAuthFailure(r.status)) return;
+        const data = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          errEl.textContent = data.message || ('建立失敗：' + r.status);
+          return;
+        }
+        closeCreateTaskModal();
+        await loadMonth();
+      } catch (err) {
+        errEl.textContent = '建立失敗：' + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    /* ── Create diary ── */
+    function fillDayTaskSelect(sel, preferredTaskId) {
+      const dayTasks = monthTasks.filter(function (t) { return t.dueDate === selectedDate; });
+      sel.innerHTML = '<option value="">不關聯</option>';
+      dayTasks.forEach(function (t) {
+        const op = document.createElement('option');
+        op.value = String(t.id);
+        op.textContent = '#' + t.id + ' · ' + (t.title || '（無標題）');
+        sel.appendChild(op);
+      });
+      if (dayTasks.length === 1) {
+        // 當日只有 1 筆任務 → 預設帶入
+        sel.value = String(dayTasks[0].id);
+      } else if (preferredTaskId) {
+        sel.value = String(preferredTaskId);
+      } else {
+        sel.value = '';
+      }
+      if (!dayTasks.length) {
+        const op = document.createElement('option');
+        op.value = '';
+        op.disabled = true;
+        op.textContent = '（當日尚無任務可關聯）';
+        sel.appendChild(op);
+      }
+      return dayTasks;
+    }
+
+    function openCreateDiaryModal() {
+      if (!selectedDate) return;
+      document.getElementById('createDiaryDateLabel').textContent = selectedDate;
+      document.getElementById('createDiarySource').value = '';
+      document.getElementById('createDiaryText').value = '';
+      document.getElementById('createDiaryLyric').value = '';
+      document.getElementById('createDiaryError').textContent = '';
+      fillDayTaskSelect(document.getElementById('createDiaryTask'), null);
+      document.getElementById('createDiaryModal').hidden = false;
+      document.getElementById('createDiaryText').focus();
+    }
+
+    function openEditDiaryLink(d) {
+      if (!selectedDate && d) {
+        selectedDate = diaryDateOf(d);
+      }
+      document.getElementById('editDiaryId').value = d.id;
+      document.getElementById('editDiaryLinkLabel').textContent =
+        '#' + d.id + ' · ' + (diaryDateOf(d) || selectedDate || '—');
+      document.getElementById('editDiaryLinkError').textContent = '';
+      fillDayTaskSelect(document.getElementById('editDiaryTask'), d.taskId || null);
+      document.getElementById('editDiaryLinkModal').hidden = false;
+    }
+
+    function closeEditDiaryLink() {
+      document.getElementById('editDiaryLinkModal').hidden = true;
+    }
+
+    async function saveEditDiaryLink(e) {
+      e.preventDefault();
+      const id = Number(document.getElementById('editDiaryId').value);
+      const taskRaw = document.getElementById('editDiaryTask').value;
+      const errEl = document.getElementById('editDiaryLinkError');
+      errEl.textContent = '';
+
+      const body = taskRaw
+        ? { taskId: Number(taskRaw), clearTask: false }
+        : { clearTask: true };
+
+      try {
+        const r = await fetch('/api/diaries/' + id, {
+          method: 'PUT',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(body)
+        });
+        if (handleAuthFailure(r.status)) return;
+        const data = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          errEl.textContent = data.message || ('更新失敗：' + r.status);
+          return;
+        }
+        closeEditDiaryLink();
+        await loadMonth();
+      } catch (err) {
+        errEl.textContent = '更新失敗：' + err.message;
+      }
+    }
+
+    function closeCreateDiaryModal() {
+      document.getElementById('createDiaryModal').hidden = true;
+    }
+
+    async function saveCreateDiary(e) {
+      e.preventDefault();
+      if (!selectedDate) return;
+      const diaryText = document.getElementById('createDiaryText').value.trim();
+      const errEl = document.getElementById('createDiaryError');
+      errEl.textContent = '';
+      if (!diaryText) { errEl.textContent = '日記本文不可空白'; return; }
+
+      const taskRaw = document.getElementById('createDiaryTask').value;
+      const body = {
+        sourceInput: document.getElementById('createDiarySource').value,
+        diaryText: diaryText,
+        lyricInspiration: document.getElementById('createDiaryLyric').value || null,
+        diaryDate: selectedDate,
+        taskId: taskRaw ? Number(taskRaw) : null
+      };
+
+      const btn = document.getElementById('createDiarySaveBtn');
+      btn.disabled = true;
+      try {
+        const r = await fetch('/api/diaries', {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(body)
+        });
+        if (handleAuthFailure(r.status)) return;
+        const data = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          errEl.textContent = data.message || ('儲存失敗：' + r.status);
+          return;
+        }
+        closeCreateDiaryModal();
+        await loadMonth();
+      } catch (err) {
+        errEl.textContent = '儲存失敗：' + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function openViewDiary(d) {
+      document.getElementById('viewDiaryIdLabel').textContent = d.id;
+      document.getElementById('viewDiaryDateLabel').textContent = diaryDateOf(d) || '—';
+      document.getElementById('viewDiaryText').textContent = d.diaryText || '';
+      document.getElementById('viewDiarySource').textContent = d.sourceInput || '（無）';
+      document.getElementById('viewDiaryLyric').textContent = d.lyricInspiration || '（無）';
+      document.getElementById('viewDiaryTask').textContent = linkLabelForDiary(d);
+      document.getElementById('viewDiaryModal').hidden = false;
+    }
+
+    function closeViewDiary() {
+      document.getElementById('viewDiaryModal').hidden = true;
+    }
+
+    function bindModalDismiss(id, closeFn) {
+      document.getElementById(id).addEventListener('click', function (e) {
+        if (e.target === e.currentTarget) closeFn();
+      });
+    }
+
+    if (requireAuth()) {
+      document.getElementById('logoutBtn').addEventListener('click', logout);
+      document.getElementById('btnPrev').addEventListener('click', function () { shiftMonth(-1); });
+      document.getElementById('btnNext').addEventListener('click', function () { shiftMonth(1); });
+      document.getElementById('btnToday').addEventListener('click', goToday);
+
+      document.getElementById('btnAddTask').addEventListener('click', openCreateTaskModal);
+      document.getElementById('btnAddDiary').addEventListener('click', openCreateDiaryModal);
+
+      document.getElementById('editCancelBtn').addEventListener('click', closeEditModal);
+      document.getElementById('editForm').addEventListener('submit', saveEdit);
+      bindModalDismiss('editModal', closeEditModal);
+
+      document.getElementById('createTaskCancelBtn').addEventListener('click', closeCreateTaskModal);
+      document.getElementById('createTaskForm').addEventListener('submit', saveCreateTask);
+      bindModalDismiss('createTaskModal', closeCreateTaskModal);
+
+      document.getElementById('createDiaryCancelBtn').addEventListener('click', closeCreateDiaryModal);
+      document.getElementById('createDiaryForm').addEventListener('submit', saveCreateDiary);
+      bindModalDismiss('createDiaryModal', closeCreateDiaryModal);
+
+      document.getElementById('editDiaryLinkCancelBtn').addEventListener('click', closeEditDiaryLink);
+      document.getElementById('editDiaryLinkForm').addEventListener('submit', saveEditDiaryLink);
+      bindModalDismiss('editDiaryLinkModal', closeEditDiaryLink);
+
+      document.getElementById('viewDiaryCloseBtn').addEventListener('click', closeViewDiary);
+      bindModalDismiss('viewDiaryModal', closeViewDiary);
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        closeEditModal();
+        closeCreateTaskModal();
+        closeCreateDiaryModal();
+        closeEditDiaryLink();
+        closeViewDiary();
+      });
+
+      // 橫幅列點擊 → 跳日 + 編輯
+      document.getElementById('soonBanner').addEventListener('click', function (e) {
+        const item = e.target.closest('.soon-item');
+        if (!item) return;
+        e.preventDefault();
+        jumpToTaskFromSoon(item.dataset.taskId, item.dataset.due);
+      });
+      document.getElementById('soonBanner').addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const item = e.target.closest('.soon-item');
+        if (!item) return;
+        e.preventDefault();
+        jumpToTaskFromSoon(item.dataset.taskId, item.dataset.due);
+      });
+
+      loadMonth();
+      // 每秒刷新 24h 內跳動倒數；≥1 天每 30 秒重算列表即可
+      setInterval(function () {
+        if (window.NNCountdown && taskById) {
+          // 合併 month + soon 來源
+          window.NNCountdown.tickLiveElements(document, taskById);
+        }
+      }, 1000);
+      setInterval(function () {
+        renderSoonBanner();
+        if (monthTasks && monthTasks.length) {
+          renderDayPanel();
+        }
+      }, 30 * 1000);
+    }
+  </script>
+</body>
+</html>

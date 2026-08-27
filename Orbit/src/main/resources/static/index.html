@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbit AI 控制台</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <!-- Orbit — AI Job Execution Console：沿用原本 nest ambient 裝飾 -->
+  <div class="nest-ambient" aria-hidden="true">
+    <div class="glow-base"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <div class="orb orb-d"></div>
+    <div class="orb orb-e"></div>
+  </div>
+
+  <div class="nav-shell">
+    <nav class="app-nav">
+      <a class="brand" href="/index.html">
+        <span class="brand-mark">🛰️</span>
+        <span>Orbit AI 控制台</span>
+      </a>
+      <div class="nav-links">
+        <a href="/index.html" class="active" data-tip="切換至 AI 任務排程與即時儀表板">工作控制台</a>
+        <a href="/history.html" data-tip="檢視與維護過往推論紀錄">歷史紀錄與編輯</a>
+        <!-- Demo 專用：Web Speech API 語音導覽按鈕 -->
+        <button type="button" id="btnTour" data-tip="播放語音與 UI 動態功能指引" onclick="toggleTour()"
+          style="margin-left:6px; padding:5px 14px; border-radius:999px; cursor:pointer;
+                 font-size:12px; font-weight:700; color:#042f2e; border:none;
+                 background:linear-gradient(135deg, #22d3ee, #14b8a6);
+                 box-shadow:0 0 10px rgba(34,211,238,.55), 0 0 22px rgba(20,184,166,.35);">🔊 啟動 3 分鐘系統導覽</button>
+      </div>
+      <div class="nav-user">
+        <span id="healthStatus" style="margin-right:10px; font-size:13px;">⚪ 檢查中…</span>
+        <span class="user-name">已登入 <strong id="navUsername">—</strong></span>
+        <button type="button" class="btn btn-ghost" id="logoutBtn">退出</button>
+      </div>
+    </nav>
+  </div>
+
+  <main class="app-main">
+    <!-- 1. Key Visual：主標題 + 副標題 -->
+    <header class="page-header">
+      <h1><span class="title-accent">Orbit AI</span> 控制台</h1>
+      <p>輕量級 LLM 推論任務調度與排程控制台 (Lightweight LLM Job Scheduler &amp; Console)</p>
+    </header>
+
+    <!-- 2 欄式佈局：左側極細時間軸 / 右側 Create Job 表單（等高、頂端對齊） -->
+    <div style="display:grid; grid-template-columns: 145px 1fr; gap:16px; align-items:stretch;">
+      <!-- 左欄：AI 任務處理流程圖解（極簡垂直時間軸） -->
+      <section class="card" style="padding:14px 10px;">
+        <div class="card-title-row">
+          <p class="card-title" style="font-size:13px;">任務流程</p>
+        </div>
+        <div id="pipeline" class="timeline">
+          <div class="tl-item" id="pipe-1">
+            <span class="tl-dot">📝</span>
+            <span class="tl-label" data-tip="將 Prompt 提示詞封裝成 Job 任務 (狀態：PENDING)">建立 Job</span>
+          </div>
+          <div class="tl-line"></div>
+          <div class="tl-item" id="pipe-2">
+            <span class="tl-dot">🩺</span>
+            <span class="tl-label" data-tip="後端 Health Check 確認 LLM 引擎在線 (🟢 Online)">服務探測</span>
+          </div>
+          <div class="tl-line"></div>
+          <div class="tl-item" id="pipe-3">
+            <span class="tl-dot">⚡</span>
+            <span class="tl-label" data-tip="派送至 Ollama / 算力節點進行 AI 計算 (狀態：RUNNING)">模型推論</span>
+          </div>
+          <div class="tl-line"></div>
+          <div class="tl-item" id="pipe-4">
+            <span class="tl-dot">📊</span>
+            <span class="tl-label" data-tip="記錄精確耗時 (ms)，回存 Result (狀態：SUCCESS/FAILED)">產出審計</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右欄：Create Panel -->
+      <section class="card">
+      <div class="card-title-row">
+        <p class="card-title">建立任務 (Create Job)</p>
+      </div>
+      <input
+        type="text"
+        id="jobName"
+        name="jobName"
+        placeholder="任務名稱"
+        style="width:100%; margin-bottom:10px;"
+      />
+      <textarea
+        id="prompt"
+        name="prompt"
+        class="textarea-auto"
+        rows="3"
+        placeholder="發送給 LLM 的輸入內容..."
+      ></textarea>
+      <div style="margin-top:10px;">
+        <label for="modelName" style="margin-right:8px;">型號名稱：</label>
+        <select id="modelName" name="modelName">
+          <option value="llama3:8b" selected>Llama 3 (8B)</option>
+          <option value="llama3.2">llama3.2</option>
+          <option value="mistral">mistral</option>
+          <option value="gemma2">gemma2</option>
+          <option value="qwen2.5">qwen2.5</option>
+        </select>
+      </div>
+      <p class="voice-hint" id="jobHint"></p>
+      <div class="btn-row">
+        <!-- 按鈕文字：建立並執行任務 -->
+        <button type="button" class="btn btn-primary" id="btnSubmitJob" data-tip="送出 Prompt 並指派至算力節點推論">建立並執行任務</button>
+        <!-- + 新增下一筆：清空表單、重置提示、聚焦 Job Name -->
+        <button type="button" class="btn btn-secondary" id="btnNewJob" data-tip="清空欄位以建立新任務">+ 新增下一筆</button>
+        <button type="button" class="btn btn-secondary" id="btnRefresh" data-tip="立即更新下方任務儀表板狀態">重新整理清單</button>
+      </div>
+    </section>
+    </div><!-- /2 欄式佈局 -->
+
+    <!-- 單一 Job 結果檢視 -->
+    <section class="card" id="resultCard" style="display: none;">
+      <div class="card-title-row">
+        <p class="card-title">任務執行結果</p>
+        <div class="card-title-actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnCloseResult" title="關閉結果檢視">✕ 關閉</button>
+        </div>
+      </div>
+      <div class="result-body" id="result"></div>
+    </section>
+
+    <!-- 3. Job Dashboard Table -->
+    <section class="card">
+      <div class="card-title-row">
+        <p class="card-title">任務儀表板 (JOB DASHBOARD)</p>
+      </div>
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:6px;">#</th>
+            <th style="text-align:left; padding:6px;">任務名稱</th>
+            <th style="text-align:left; padding:6px;">推論模型</th>
+            <th style="text-align:left; padding:6px;">執行狀態</th>
+            <th style="text-align:left; padding:6px;">執行耗時 (ms)</th>
+            <th style="text-align:left; padding:6px;">操作方式</th>
+          </tr>
+        </thead>
+        <tbody id="jobTableBody">
+          <tr><td colspan="6" style="padding:8px;" class="muted">載入中…</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    /* ═══════════════════════════════════════════════════════
+       Orbit — AI Job Execution Console
+       API 綁定：
+         GET  /api/jobs              取得 Job 列表
+         POST /api/jobs              建立 Job（jobName/prompt/modelName）
+         POST /api/jobs/{id}/execute 觸發執行
+         GET  /api/jobs/{id}         取得單一結果
+       （原本的 Task / AI Suggest API 已全數替換）
+       ═══════════════════════════════════════════════════════ */
+    const TOKEN_KEY = 'nn_token';
+    const USER_KEY = 'nn_username';
+    const DEFAULT_MODEL = 'llama3:8b';
+
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function requireAuth() {
+      const token = getToken();
+      const username = localStorage.getItem(USER_KEY);
+      if (!token || !username) {
+        location.href = '/login.html';
+        return false;
+      }
+      document.getElementById('navUsername').textContent = username;
+      return true;
+    }
+
+    function authHeaders(extra = {}) {
+      const headers = { ...extra };
+      const token = getToken();
+      if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
+      }
+      return headers;
+    }
+
+    function logout() {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      location.href = '/login.html';
+    }
+
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function setHint(msg, kind) {
+      const el = document.getElementById('jobHint');
+      el.textContent = msg || '';
+      el.classList.remove('is-error', 'is-active');
+      if (kind === 'error') el.classList.add('is-error');
+      if (kind === 'active') el.classList.add('is-active');
+    }
+
+    /* ── Status Badge 顏色（沿用既有 CSS class，無對應時 fallback）── */
+    function statusBadge(status) {
+      const s = String(status || '').toUpperCase();
+      let cls;
+      switch (s) {
+        case 'SUCCESS': cls = 'badge-success'; break;
+        case 'FAILED':  cls = 'badge-failed';  break;
+        case 'RUNNING': cls = 'badge-running'; break;
+        default:        cls = 'badge-pending'; break; // PENDING 與未知狀態
+      }
+      return '<span class="' + cls + '">' + escapeHtml(s) + '</span>';
+    }
+
+    /* ── 4. GET /api/jobs：載入 Job 列表 ── */
+    async function loadJobs() {
+      const tbody = document.getElementById('jobTableBody');
+      try {
+        const resp = await fetch('/api/jobs', {
+          method: 'GET',
+          headers: authHeaders()
+        });
+
+        if (resp.status === 401 || resp.status === 403) {
+          tbody.innerHTML = '<tr><td colspan="6" class="err">未授權，請重新登入</td></tr>';
+          setTimeout(logout, 800);
+          return;
+        }
+        if (!resp.ok) {
+          tbody.innerHTML = '<tr><td colspan="6" class="err">載入失敗：HTTP ' + resp.status + '</td></tr>';
+          return;
+        }
+
+        const jobs = await resp.json();
+        if (!Array.isArray(jobs) || jobs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="muted" style="padding:8px;">目前沒有 Job，先建立一個吧！</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = jobs.map(function (j) {
+          const execTime = (j.executionTimeMs == null) ? '—' : j.executionTimeMs;
+          return '<tr>'
+            + '<td style="padding:6px;">' + escapeHtml(j.id) + '</td>'
+            + '<td style="padding:6px;">' + escapeHtml(j.jobName) + '</td>'
+            + '<td style="padding:6px;">' + escapeHtml(j.modelName || DEFAULT_MODEL) + '</td>'
+            + '<td style="padding:6px;">' + statusBadge(j.status) + '</td>'
+            + '<td style="padding:6px;">' + escapeHtml(execTime) + '</td>'
+            + '<td style="padding:6px;">'
+            +   '<button type="button" class="btn btn-secondary btn-sm" onclick="executeJob(' + j.id + ')">重新執行</button>'
+            +   ' <button type="button" class="btn btn-ghost btn-sm" onclick="viewJob(' + j.id + ')">檢視結果</button>'
+            +   ' <button type="button" class="btn btn-ghost btn-sm" style="color:#fca5a5;" onclick="deleteJob(' + j.id + ')">刪除</button>'
+            + '</td>'
+            + '</tr>';
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="err">載入失敗：' + escapeHtml(e.message) + '</td></tr>';
+      }
+    }
+
+    /* ── 4. POST /api/jobs：建立 Job（PENDING）→ 接著觸發執行 ── */
+    async function submitJob() {
+      const jobName = document.getElementById('jobName').value.trim();
+      const prompt = document.getElementById('prompt').value.trim();
+      const modelName = document.getElementById('modelName').value.trim() || DEFAULT_MODEL;
+
+      if (!jobName) { setHint('請輸入 Job Name', 'error'); return; }
+      if (!prompt) { setHint('請輸入 Prompt（發送給 AI 的內容）', 'error'); return; }
+
+      const btn = document.getElementById('btnSubmitJob');
+      btn.disabled = true;
+      setHint('建立 Job 中…', 'active');
+      pipeReset();
+      pipeActivate(1); // 步驟 1：建立 Job
+
+      try {
+        const resp = await fetch('/api/jobs', {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ jobName: jobName, prompt: prompt, modelName: modelName })
+        });
+
+        if (resp.status === 401 || resp.status === 403) {
+          setHint('未授權，請重新登入', 'error');
+          setTimeout(logout, 800);
+          return;
+        }
+
+        const data = await resp.json().catch(function () { return {}; });
+        if (!resp.ok) {
+          setHint(data.message || ('建立失敗：HTTP ' + resp.status), 'error');
+          return;
+        }
+
+        setHint('Job #' + data.id + ' 已建立（PENDING），開始執行…', 'active');
+        pipeDone(1);
+        // 步驟間隔 1.5 秒，讓霓虹燈由上往下依序亮起的過程清晰可見
+        setTimeout(function () { pipeActivate(2); }, 1500); // 步驟 2：服務探測
+        // 建立 → 直接觸發執行（後端同步執行，前端先走完燈號節奏）
+        const execPromise = executeJob(data.id, { silent: true, skipResultView: true });
+        setTimeout(function () {
+          pipeDone(2); pipeActivate(3); // 步驟 2 完成 → 步驟 3 推論亮起
+        }, 3000);
+        setTimeout(function () {
+          pipeDone(3); pipeActivate(4); // 步驟 3 完成 → 步驟 4 審計亮起
+        }, 4500);
+        execPromise.then(function () {
+          setTimeout(function () { pipeDone(4); }, 6000); // 步驟 4 等實際結果回來再轉綠
+        });
+        // 依需求：提交後保留輸入內容，不自動清空 Job Name / Prompt
+      } catch (e) {
+        setHint('建立失敗：' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    /* ── 4. POST /api/jobs/{id}/execute：執行指定 Job ── */
+    async function executeJob(id, opts) {
+      opts = opts || {};
+      if (!opts.silent) {
+        setHint('Job #' + id + ' 執行中…（RUNNING）', 'active');
+        pipeReset();       // 手動「重新執行」時重播整條流程
+        pipeActivate(2);   // 步驟 2：服務探測
+      }
+      try {
+        const resp = await fetch('/api/jobs/' + id + '/execute', {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' })
+        });
+
+        if (resp.status === 401 || resp.status === 403) {
+          setHint('未授權，請重新登入', 'error');
+          setTimeout(logout, 800);
+          return;
+        }
+
+        const data = await resp.json().catch(function () { return {}; });
+        if (!resp.ok) {
+          setHint(data.message || ('執行失敗：HTTP ' + resp.status), 'error');
+        } else {
+          // 手動「重新執行」：步驟 2 亮起後依節奏推進（每步 ~1.5 秒）
+          pipeDone(2); pipeActivate(3);
+          setTimeout(function () { pipeDone(3); pipeActivate(4); }, 1500);
+          setTimeout(function () {
+            if (data.status !== 'FAILED') pipeDone(4);
+          }, 3000);
+          setHint('Job #' + id + ' 完成，狀態：' + data.status
+            + (data.executionTimeMs != null ? '（耗時 ' + data.executionTimeMs + ' ms）' : ''),
+            data.status === 'FAILED' ? 'error' : '');
+        }
+      } catch (e) {
+        setHint('執行失敗：' + e.message, 'error');
+      } finally {
+        loadJobs(); // 無論成敗都刷新列表
+        // 執行後自動取得最新資料並展開 Result 卡片（不需手動按「檢視結果」）
+        if (!opts.skipResultView) await viewJob(id, { scrollIntoView: true });
+      }
+    }
+
+    /* ── 4. DELETE /api/jobs/{id}：刪除指定 Job（歷史紀錄維護） ── */
+    async function deleteJob(id) {
+      if (!confirm('確定要刪除任務 #' + id + ' 嗎？此操作無法復原。')) return;
+      try {
+        const resp = await fetch('/api/jobs/' + id, {
+          method: 'DELETE',
+          headers: authHeaders()
+        });
+
+        if (resp.status === 401 || resp.status === 403) {
+          setHint('未授權，請重新登入', 'error');
+          setTimeout(logout, 800);
+          return;
+        }
+        if (!resp.ok && resp.status !== 204) {
+          const data = await resp.json().catch(function () { return {}; });
+          setHint(data.message || ('刪除失敗：HTTP ' + resp.status), 'error');
+          return;
+        }
+        setHint('任務 #' + id + ' 已刪除');
+        // 若 Result 卡片正在顯示被刪除的 Job，直接收起
+        document.getElementById('resultCard').style.display = 'none';
+      } catch (e) {
+        setHint('刪除失敗：' + e.message, 'error');
+      } finally {
+        loadJobs();
+      }
+    }
+
+    /* ── 4. GET /api/jobs/{id}：查看單一 Job 結果 ── */
+    async function viewJob(id, opts) {
+      opts = opts || {};
+      const resultCard = document.getElementById('resultCard');
+      const res = document.getElementById('result');
+      resultCard.style.display = 'block';
+      res.innerHTML = '<p class="muted">載入中…</p>';
+
+      try {
+        const resp = await fetch('/api/jobs/' + id, {
+          method: 'GET',
+          headers: authHeaders()
+        });
+
+        if (resp.status === 401 || resp.status === 403) {
+          res.innerHTML = '<p class="err">未授權，請重新登入</p>';
+          setTimeout(logout, 800);
+          return;
+        }
+
+        const j = await resp.json().catch(function () { return {}; });
+        if (!resp.ok) {
+          res.innerHTML = '<p class="err">載入失敗：HTTP ' + resp.status + '</p>';
+          return;
+        }
+
+        let html = '<h3>' + escapeHtml(j.jobName) + ' <small>(#' + escapeHtml(j.id) + ')</small></h3>';
+        html += '<p><span class="label">推論模型：</span> ' + escapeHtml(j.modelName || DEFAULT_MODEL) + '</p>';
+        html += '<p><span class="label">執行狀態：</span> ' + statusBadge(j.status) + '</p>';
+        html += '<p><span class="label">執行耗時：</span> '
+          + (j.executionTimeMs == null ? '—' : escapeHtml(j.executionTimeMs) + ' ms') + '</p>';
+        html += '<hr><p><span class="label">提示詞 (Prompt)：</span><br><pre>' + escapeHtml(j.prompt) + '</pre></p>';
+        html += '<p><span class="label">生成結果 (Result)：</span><br><pre>' + escapeHtml(j.result || '（尚未執行）') + '</pre></p>';
+        res.innerHTML = html;
+        // 自動滾動至 Result 卡片，讓使用者直接看到最新結果
+        if (opts.scrollIntoView && resultCard.scrollIntoView) {
+          resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } catch (e) {
+        res.innerHTML = '<p class="err">載入失敗：' + escapeHtml(e.message) + '</p>';
+      }
+    }
+
+    /* ── + 新增下一筆：清空表單、重置狀態提示、聚焦回 Job Name ── */
+    function resetJobForm() {
+      document.getElementById('jobName').value = '';
+      document.getElementById('prompt').value = '';
+      document.getElementById('modelName').value = DEFAULT_MODEL;
+      setHint(''); // 重置「Job #X 完成…」等提示文字
+      const nameInput = document.getElementById('jobName');
+      nameInput.focus();
+    }
+
+    /* ── Pipeline 流程圖動態效果 ──
+       submitJob / executeJob 時依步驟點亮對應卡片，呈現資料流動感 */
+    function pipeReset() {
+      [1, 2, 3, 4].forEach(function (n) {
+        const el = document.getElementById('pipe-' + n);
+        el.classList.remove('pipe-active', 'pipe-done');
+      });
+    }
+
+    function pipeActivate(n) {
+      const el = document.getElementById('pipe-' + n);
+      if (!el) return;
+      el.classList.add('pipe-active');
+    }
+
+    function pipeDone(n) {
+      const el = document.getElementById('pipe-' + n);
+      if (!el) return;
+      el.classList.remove('pipe-active');
+      el.classList.add('pipe-done');
+      // 綠光停留 4 秒後淡出回復（錄影時看得更清楚）
+      setTimeout(function () { el.classList.remove('pipe-done'); }, 4000);
+    }
+
+    /* ── Tooltip 定位：hover 時氣泡框顯示在元素「正上方」（fixed，全域唯一，z-index 9999）── */
+    let orbitTipEl = null;
+
+    function initTooltips() {
+      // 建立全域唯一的 Tooltip 元素
+      orbitTipEl = document.createElement('div');
+      orbitTipEl.className = 'orbit-tip';
+      document.body.appendChild(orbitTipEl);
+
+      // 綁定所有帶 data-tip 的元素（時間軸標題 + 導覽列/表單按鈕）
+      document.querySelectorAll('[data-tip]').forEach(function (el) {
+        el.addEventListener('mouseenter', function () {
+          orbitTipEl.textContent = el.getAttribute('data-tip');
+          orbitTipEl.classList.add('show');
+
+          // 量測：放在元素上方置中；超出視窗邊緣時自動修正
+          const r = el.getBoundingClientRect();
+          const tipW = orbitTipEl.offsetWidth;
+          const tipH = orbitTipEl.offsetHeight;
+          let x = r.left + r.width / 2 - tipW / 2;
+          x = Math.max(8, Math.min(x, window.innerWidth - tipW - 8));
+          let y = r.top - tipH - 8;   // 預設在上方
+          if (y < 8) y = r.bottom + 8; // 太靠頂時改為下方
+
+          orbitTipEl.style.left = x + 'px';
+          orbitTipEl.style.top = y + 'px';
+        });
+        el.addEventListener('mouseleave', function () {
+          orbitTipEl.classList.remove('show');
+        });
+      });
+    }
+
+    /* ── Auto-grow textarea（沿用原功能）── */
+    function autoGrowTextarea(el) {
+      if (!el) return;
+      el.classList.remove('is-scrollable');
+      el.style.height = 'auto';
+      const max = 240;
+      const next = Math.min(el.scrollHeight, max);
+      el.style.height = next + 'px';
+      if (el.scrollHeight > max) {
+        el.classList.add('is-scrollable');
+      }
+    }
+
+    function initAutoGrow() {
+      const ta = document.getElementById('prompt');
+      if (!ta) return;
+      ta.addEventListener('input', function () { autoGrowTextarea(ta); });
+      autoGrowTextarea(ta);
+    }
+
+    /* ── Demo 自動語音導覽 (Web Speech API) ──
+       逐段朗讀講稿，並在每段同步觸發 UI 動作（滾動/亮起）讓錄影更自然 */
+    let tourActive = false;
+
+    const TOUR_SCRIPT = [
+      {
+        text: '面試官好，這是 Orbit AI 任務調度控制台。當初設計這個專案的初衷，是將一次 AI 推論抽象成具備完整生命週期的 Job。',
+        act: function () { window.scrollTo({ top: 0, behavior: 'smooth' }); flashCard('.card'); }
+      },
+      {
+        text: '系統具備主動監控機制，右上角會即時探測本地 Ollama 的 API 狀態，並動態載入模型清單。',
+        act: function () { pulseEl('healthStatus'); }
+      },
+      {
+        text: '當我們建立任務時，後端會將推論過程封裝為 Job，精準記錄執行耗時、成功狀態與生成結果。',
+        act: function () {
+          const panel = document.querySelector('.card input#jobName') ? document.getElementById('jobName').closest('.card') : null;
+          if (panel) { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); flashCard(panel); }
+        }
+      },
+      {
+        text: '切換到歷史紀錄頁面，能對過往任務進行關鍵字搜尋、多狀態篩選，並將 Prompt 帶回編輯器重新推論。',
+        // 注意：不真的跳頁——頁面切換會中斷語音；改為高亮「歷史紀錄與編輯」連結引導視線
+        act: function () {
+          const link = document.querySelector('.nav-links a[href="/history.html"]');
+          if (link) { pulseEl2(link); }
+        }
+      },
+      {
+        text: '本專案旨在證明能將 AI 呼叫做成可觀察、可管理的系統架構。感謝聆聽！',
+        act: function () { /* 收尾 */ }
+      }
+    ];
+
+    function toggleTour() {
+      if (tourActive) { stopTour(); return; }
+      startTour();
+    }
+
+    function setTourBtn(playing) {
+      const btn = document.getElementById('btnTour');
+      btn.textContent = playing ? '⏸️ 停止導覽' : '🔊 啟動 3 分鐘系統導覽';
+    }
+
+    function startTour() {
+      if (!window.speechSynthesis) {
+        alert('此瀏覽器不支援語音朗讀（建議使用 Chrome 或 Edge）。');
+        return;
+      }
+      tourActive = true;
+      setTourBtn(true);
+      speakSegment(0);
+    }
+
+    function stopTour() {
+      tourActive = false;
+      window.speechSynthesis.cancel();
+      setTourBtn(false);
+    }
+
+    /** 依序朗讀每段；每段開始時執行對應 UI 動作 */
+    function speakSegment(idx) {
+      if (!tourActive || idx >= TOUR_SCRIPT.length) {
+        stopTour();
+        return;
+      }
+      const seg = TOUR_SCRIPT[idx];
+      try { seg.act(); } catch (e) { /* UI 動作失敗不影響語音 */ }
+
+      const utter = new SpeechSynthesisUtterance(seg.text);
+      utter.lang = 'zh-TW';
+      utter.rate = 1.05;   // 流暢自然
+      utter.pitch = 1;
+
+      // 優先挑選 zh-TW 語音
+      const voices = window.speechSynthesis.getVoices() || [];
+      const zhTw = voices.find(function (v) { return /zh[-_]TW/i.test(v.lang); })
+                 || voices.find(function (v) { return /zh/i.test(v.lang) || /Chinese|中文|國語|台/i.test(v.name); });
+      if (zhTw) utter.voice = zhTw;
+
+      utter.onend = function () {
+        if (tourActive) speakSegment(idx + 1); // 接續下一段
+      };
+      utter.onerror = function () { stopTour(); };
+
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    }
+
+    /** 讓卡片短暫亮起（霓虹光暈脈衝），引導視線 */
+    function flashCard(elOrSelector) {
+      const el = typeof elOrSelector === 'string'
+        ? document.querySelector(elOrSelector) : elOrSelector;
+      if (!el) return;
+      el.style.transition = 'box-shadow .4s ease';
+      el.style.boxShadow = '0 0 0 2px rgba(34,211,238,.8), 0 0 30px rgba(34,211,238,.45)';
+      setTimeout(function () { el.style.boxShadow = ''; }, 1600);
+    }
+
+    /** 導覽列元素亮起脈衝（如健康檢查燈） */
+    function pulseEl(id) {
+      pulseEl2(document.getElementById(id));
+    }
+
+    /** 任意元素縮放脈衝（導覽連結等） */
+    function pulseEl2(el) {
+      if (!el) return;
+      const orig = el.style.transform;
+      el.style.transition = 'transform .3s ease';
+      let on = false;
+      let count = 0;
+      const t = setInterval(function () {
+        el.style.transform = (on = !on) ? 'scale(1.18)' : 'scale(1)';
+        el.style.display = el.style.display || 'inline-block';
+        if (++count >= 6) {
+          clearInterval(t);
+          el.style.transform = orig;
+        }
+      }, 260);
+    }
+
+    /* ── Init ── */
+    if (requireAuth()) {
+      document.getElementById('logoutBtn').addEventListener('click', logout);
+      document.getElementById('btnSubmitJob').addEventListener('click', submitJob);
+      document.getElementById('btnNewJob').addEventListener('click', resetJobForm);
+      document.getElementById('btnRefresh').addEventListener('click', loadJobs);
+      document.getElementById('btnCloseResult').addEventListener('click', function () {
+        document.getElementById('resultCard').style.display = 'none';
+      });
+      initAutoGrow();
+      loadJobs();
+      initHealthCheck();
+      loadModelOptions('modelName'); // 動態模型選單（Create Job）
+      initTooltips();                // 時間軸 Tooltip
+    }
+
+    /* ── 動態模型選單：GET /api/models → 填充指定 <select> ── */
+    async function loadModelOptions(selectId) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      const current = sel.value || DEFAULT_MODEL; // 保留目前選擇
+      try {
+        const resp = await fetch('/api/models', { method: 'GET' });
+        const data = await resp.json().catch(function () { return {}; });
+        const models = Array.isArray(data.models) ? data.models : [];
+        if (models.length === 0) return; // API 失敗時保留原本寫死選項
+
+        sel.innerHTML = '';
+        let found = false;
+        models.forEach(function (m) {
+          const opt = document.createElement('option');
+          opt.value = m;
+          // llama3:8b → Llama 3 (8B)；其餘顯示原名
+          opt.textContent = m === 'llama3:8b' ? 'Llama 3 (8B)' : m;
+          sel.appendChild(opt);
+          if (m === current) found = true;
+        });
+        if (!found) {
+          // 目前值不在清單中，補一個自訂選項避免選擇丟失
+          const opt = document.createElement('option');
+          opt.value = current;
+          opt.textContent = current + '（自訂）';
+          sel.appendChild(opt);
+        }
+        sel.value = current;
+      } catch (e) {
+        console.warn('載入模型清單失敗，保留預設選項', e);
+      }
+    }
+
+    /* ── 服務健康檢查：GET /api/health → 綠燈/紅燈 + 離線提示 ── */
+    function initHealthCheck() {
+      checkHealth();               // 載入立即檢查一次
+      setInterval(checkHealth, 30000); // 每 30 秒自動巡檢
+    }
+
+    async function checkHealth() {
+      const el = document.getElementById('healthStatus');
+      try {
+        const resp = await fetch('/api/health', { method: 'GET' });
+        const data = await resp.json().catch(function () { return {}; });
+        if (resp.ok && data.ollama === 'UP') {
+          el.textContent = '🟢 Ollama Online';
+          el.style.color = '#86efac';
+        } else {
+          showOffline(el);
+        }
+      } catch (e) {
+        showOffline(el);
+      }
+    }
+
+    function showOffline(el) {
+      el.textContent = '🔴 Ollama Offline';
+      el.style.color = '#fca5a5';
+      setHint('⚠ LLM 服務離線中，執行任務前請先啟動 Ollama', 'error');
+    }
+  </script>
+</body>
+</html>

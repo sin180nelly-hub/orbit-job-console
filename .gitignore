@@ -1,0 +1,16 @@
+﻿Orbit/target/
+Orbit/data/
+*.bak
+.vscode/
+.idea/
+*.iml
+*.log
+*.db
+*.mv.db
+*.trace.db
+.env
+.env.*
+application-local.yml
+application-local.properties
+.DS_Store
+Thumbs.db

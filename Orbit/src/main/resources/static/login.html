@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbit AI 控制台 | 登入</title>
+  <style>
+    :root {
+      --bg: #03060d;
+      --cyan: #22d3ee;
+      --teal: #14b8a6;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+
+    .nest {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    /* 半透明橢圓底座，跟著拉寬 */
+    .nest-base {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 760px;
+      height: 320px;
+      transform: translate(-50%, -38%);
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center,
+        rgba(49, 200, 241, 0.4) 3%,
+        rgba(108, 1, 247, 0.22) 48%,
+        transparent 72%);
+      z-index: 0;
+    }
+
+    .orb {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 32% 28%,
+        #7dd3fc 0%,
+        #2d6d7d 42%,
+        #0c4a6e 78%,
+        #27024a 85%);
+      box-shadow:
+        0 0 20px rgba(154, 221, 231, 0.75),
+        0 0 45px rgba(20, 196, 223, 0.45),
+        0 0 80px rgba(62, 8, 155, 0.3),
+        inset 0 0 16px rgba(186, 230, 253, 0.35);
+      opacity: 0.83;   /* 鳥巢透明度 */
+    }
+
+    /*
+      更扁的大橢圓環（左右拉開）
+      上方/側邊 z-index 較低（在蛋後面）
+      下方前排 z-index 很高（蓋住蛋底部）
+    */
+    .o1  { width: 400px; height: 380px; transform: translate(-50%,-50%) translate(0, -230px); z-index: 2; }   /* 頂 */
+    .o2  { width: 300px; height: 260px; transform: translate(-50%,-50%) translate(150px, -195px); z-index: 2; }
+    .o3  { width: 300px; height: 260px; transform: translate(-50%,-50%) translate(-150px, -195px); z-index: 2; }
+    .o4  { width: 280px; height: 230px; transform: translate(-50%,-50%) translate(280px, -110px); z-index: 3; }
+    .o5  { width: 280px; height: 230px; transform: translate(-50%,-50%) translate(-280px, -110px); z-index: 3; }
+    .o6  { width: 300px; height: 250px; transform: translate(-50%,-50%) translate(340px, 0); z-index: 3; }    /* 最右 */
+    .o7  { width: 300px; height: 250px; transform: translate(-50%,-50%) translate(-340px, 0); z-index: 3; }   /* 最左 */
+    .o8  { width: 270px; height: 220px; transform: translate(-50%,-50%) translate(280px, 110px); z-index: 8; }
+    .o9  { width: 270px; height: 230px; transform: translate(-50%,-50%) translate(-280px, 110px); z-index: 8; }
+    .o10 { width: 240px; height: 200px; transform: translate(-50%,-30%) translate(150px, 195px); z-index: 12; }
+    .o11 { width: 240px; height: 200px; transform: translate(-50%,-30%) translate(-150px, 195px); z-index: 12; }
+    .o12 { width: 230px; height: 220px; transform: translate(-50%,-30%) translate(0, 235px); z-index: 15; }  /* 正前最大，蓋蛋 */
+
+    /* 蛋在中層：上方球在後，下方球在前 */
+    .egg {
+      width: min(300px, 82vw);
+      height: min(430px, 76vh);
+      padding: 90px 32px 40px;
+      border-radius: 50% 50% 50% 50% / 32% 32% 68% 68%;
+      transform: rotate(180deg);
+      background:
+        radial-gradient(circle at 50% 84%, rgba(23, 170, 193, 0.16), transparent 42%),
+        rgba(6, 12, 24, 0.95);
+      border: 1px solid rgba(34, 211, 238, 0.45);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.05) inset,
+        0 28px 80px rgba(0,0,0,0.6),
+        0 0 50px rgba(34, 211, 238, 0.22);
+      position: relative;
+      z-index: 6; /* 低於前排球，高於後排球 */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .egg-inner { transform: rotate(180deg); }
+
+    .brand { text-align: center; margin-bottom: 16px; }
+
+    .logo {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 10px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      background: radial-gradient(circle at 30% 30%, #a5f3fc, #0e7490);
+      box-shadow: 0 0 20px rgba(34, 211, 238, 0.7);
+    }
+
+    .brand h1 { font-size: 21px; font-weight: 700; }
+    .brand p { margin-top: 5px; color: var(--muted); font-size: 12px; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 11px 0 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 11px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(2, 6, 23, 0.75);
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus {
+      border-color: rgba(34, 211, 238, 0.85);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18);
+    }
+
+    .btn {
+      width: 100%;
+      margin-top: 20px;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 700;
+      color: #042f2e;
+      background: linear-gradient(135deg, var(--cyan), var(--teal));
+      box-shadow: 0 10px 28px rgba(20, 184, 166, 0.35);
+    }
+
+    .hint {
+      margin-top: 12px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .status {
+      margin-top: 8px;
+      min-height: 18px;
+      text-align: center;
+      font-size: 13px;
+      color: #fca5a5;
+    }
+  </style>
+</head>
+<body>
+  <div class="nest">
+    <div class="nest-base"></div>
+    <div class="orb o1"></div>
+    <div class="orb o2"></div>
+    <div class="orb o3"></div>
+    <div class="orb o4"></div>
+    <div class="orb o5"></div>
+    <div class="orb o6"></div>
+    <div class="orb o7"></div>
+    <div class="orb o8"></div>
+    <div class="orb o9"></div>
+    <div class="orb o10"></div>
+    <div class="orb o11"></div>
+    <div class="orb o12"></div>
+  </div>
+
+  <div class="egg">
+    <div class="egg-inner">
+      <div class="brand">
+        <div class="logo">🛰️</div>
+        <h1>Orbit AI 控制台</h1>
+        <p>AI 任務執行與生命週期管理平台 (Local Demo)</p>
+      </div>
+
+      <label>帳號</label>
+      <input id="username" value="nelly0" autocomplete="username" />
+
+      <label>密碼</label>
+      <input id="password" type="password" value="nelly00" autocomplete="current-password" />
+
+      <button class="btn" onclick="login()">登入</button>
+      <div class="hint">開發帳號：nelly0 / nelly00</div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <script>
+    async function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const status = document.getElementById('status');
+      status.style.color = '#94a3b8';
+      status.textContent = '登入中...';
+
+      try {
+        const resp = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        if (!resp.ok) {
+          status.style.color = '#fca5a5';
+          status.textContent = '登入失敗（' + resp.status + '），請確認帳號密碼';
+          return;
+        }
+
+        const data = await resp.json();
+        localStorage.setItem('nn_token', data.token);
+        localStorage.setItem('nn_username', username);
+        status.style.color = '#5eead4';
+        status.textContent = '登入成功，前往主頁...';
+        setTimeout(() => location.href = '/index.html', 400);
+      } catch (e) {
+        status.style.color = '#fca5a5';
+        status.textContent = '連線失敗，請確認後端已啟動';
+      }
+    }
+  </script>
+</body>
+</html>
