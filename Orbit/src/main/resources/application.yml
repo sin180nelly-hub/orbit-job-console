@@ -5,9 +5,9 @@ spring:
   application:
     name: navigator-nest
 
-  # === H2 鞈?摨怨身摰??辣璅∪?嚗???????===
+  # === H2 資料庫設定（文件模式，資料會持久化）===
   datasource:
-    # 瑼???典?獢?桅?嚗ata/navigator-nest/navigator_nest.mv.db
+    # 檔案會落在專案根目錄：data/navigator-nest/navigator_nest.mv.db
     url: jdbc:h2:file:./data/navigator-nest/navigator_nest;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
     driver-class-name: org.h2.Driver
     username: sa
@@ -15,18 +15,18 @@ spring:
 
   jpa:
     hibernate:
-      # update嚗????湔 schema嚗???drop ?Ｘ?鞈?
+      # update：啟動時更新 schema，不會 drop 既有資料
       ddl-auto: update
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-    # 霈?data.sql ??Hibernate 撱箏?銵其?敺??瑁?
+    # 讓 data.sql 在 Hibernate 建完表之後再執行
     defer-datasource-initialization: true
 
   sql:
     init:
-      # always嚗?甈∪??銵?data.sql嚗歇?寧 MERGE嚗?????AI ?啣??遙??
+      # always：每次啟動執行 data.sql（已改為 MERGE，不會清掉 AI 新存的任務）
       mode: always
       encoding: UTF-8
 
@@ -35,28 +35,29 @@ spring:
       enabled: true
       path: /h2-console
       settings:
-        # ?祆???迂 Console嚗?芣璈??舀 false
+        # 本機開發允許 Console；若只本機開可改 false
         web-allow-others: true
         trace: false
 
-# === JWT 閮剖? ===
-# secret ???Base64 蝺函Ⅳ摮葡嚗wtTokenProvider ??decode嚗?jwt:
+# === JWT 設定 ===
+# secret 需為 Base64 編碼字串（JwtTokenProvider 會 decode）
+jwt:
   # Base64 of a long HS secret (>= 64 bytes after decode)
-    secret: "please-change-this-dev-secret-please-change-this-dev-secret-0123456789ab"
+  secret: WW91clN1cGVyTG9uZ0FuZFNlY3VyZUp3dFNlY3JldEtleUZvckhTNTEyQWxnb3JpdGhtVGhhdE11c3RCZUF0TGVhc3Q2NEJ5dGVzTG9uZzEyMzQ1Njc4OTBhYmNkZWZnSElKS0xNTg==
   expiration: 86400000
 
-# === ?砍 LLM嚗penAI ?詨捆 API嚗llama / LM Studio嚗?==
-# Ollama ?身嚗ttp://localhost:11434/v1
-# LM Studio 撣貉?嚗ttp://localhost:1234/v1
+# === 本地 LLM（OpenAI 相容 API：Ollama / LM Studio）===
+# Ollama 預設：http://localhost:11434/v1
+# LM Studio 常見：http://localhost:1234/v1
 ai:
   base-url: http://localhost:11434/v1
   model: thewindmom/hermes-3-llama-3.1-8b:latest
-  # Ollama ?虜銝?閬?LM Studio / ?嗡????交?閬??臬‵
+  # Ollama 通常不需要；LM Studio / 其他服務若有要求可填
   api-key:
 
-# === Orbit ??AI Job Execution Console嚗ob ?刻???Ollama 閮剖? ===
-# ollama.model嚗ob ?芣?摰?modelName ?????身璅∪?
-# ?垢?喳 modelName > ollama.model ?蔭 > llama3:8b 蝖祉楊蝣潮?閮?ollama:
+# === Orbit — AI Job Execution Console：Job 推論用 Ollama 設定 ===
+# ollama.model：Job 未指定 modelName 時的降級預設模型
+# 前端傳入 modelName > ollama.model 配置 > llama3:8b 硬編碼預設
+ollama:
   base-url: http://localhost:11434
   model: llama3:8b
-
