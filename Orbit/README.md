@@ -1,11 +1,21 @@
-# Navigator Nest
+# Orbit Job Console
 
-Spring Boot 個人任務與日記系統，整合本地 LLM（Ollama / LM Studio）。
+Spring Boot 本機 LLM Job 控制台（MVP）。
+從既有 NavigatorNest（登入／任務／日記）加上 Job 模組：一次推論做成可查的狀態紀錄。
 
-- JWT 登入與使用者資料隔離
-- 任務 CRUD、優先級／狀態／截止日期與可選時間
-- AI：自然語言 → 任務建議 + 日記 + 歌詞，可一鍵存檔
-- 獨立日記（可關聯任務）、月曆與「過去／現在／未來」時間軸
-- 即將到期倒數（24h 內即時時分秒）
+## 現況
+- Job：PENDING → RUNNING → SUCCESS / FAILED
+- 同步執行 Ollama（不是 Queue，RestTemplate 未設 timeout）
+- Health Check：`GET /api/health`
+- 資料：H2 + JPA `ddl-auto: update` + `data.sql`
+- 尚無 CI/CD pipeline
 
-**Stack:** Java 21 · Spring Boot · JPA · Security/JWT · H2 · RestClient · 靜態前端
+## 怎麼跑
+1. 安裝 Java 21、Ollama
+2. 雙擊 `start-orbit.bat`，或進入 `Orbit/` 執行 `mvnw.cmd spring-boot:run`
+3. 開啟 http://localhost:8080/index.html
+
+## Demo
+https://www.youtube.com/watch?v=jCsSvtyqJLk
+
+原始碼主目錄在 `Orbit/`。
