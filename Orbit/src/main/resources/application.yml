@@ -43,7 +43,7 @@ spring:
 # secret 需為 Base64 編碼字串（JwtTokenProvider 會 decode）
 jwt:
   # Base64 of a long HS secret (>= 64 bytes after decode)
-  secret: WW91clN1cGVyTG9uZ0FuZFNlY3VyZUp3dFNlY3JldEtleUZvckhTNTEyQWxnb3JpdGhtVGhhdE11c3RCZUF0TGVhc3Q2NEJ5dGVzTG9uZzEyMzQ1Njc4OTBhYmNkZWZnSElKS0xNTg==
+  secret: "cGxlYXNlLWNoYW5nZS10aGlzLWRldi1zZWNyZXQtcGxlYXNlLWNoYW5nZS10aGlzLWRldi1zZWNyZXQtMDEyMzQ1Njc4OWFi"
   expiration: 86400000
 
 # === 本地 LLM（OpenAI 相容 API：Ollama / LM Studio）===
